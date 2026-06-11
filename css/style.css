@@ -218,9 +218,14 @@ body {
 .sq-disaster   { fill: #7f1d1d; }
 .sq-accident   { fill: #ef4444; }
 .sq-fire       { fill: #dc2626; }
+.sq-housedmg   { fill: #608aa5; }
 .sq-layoff     { fill: #57534e; }
 .sq-stockboom  { fill: #16a34a; }
 .sq-stockcrash { fill: #1e40af; }
+.sq-jobsq      { fill: #2dbd8d; }
+.sq-jobfair    { fill: #0d9488; }
+.sq-gift       { fill: #f4729c; }
+.sq-finalbet   { fill: #b45309; }
 
 .sq-icon { font-size: 27px; text-anchor: middle; }
 .sq-label {
@@ -380,6 +385,11 @@ body {
   margin-top: 20px; justify-content: center;
 }
 .ev-text { font-size: 18px; font-weight: bold; }
+.ev-amt { font-size: 32px; font-weight: 900; margin-top: 8px; text-align: center; }
+.ev-amt.plus { color: #1a7f37; }
+.ev-amt.minus { color: #c0392b; }
+.ev-amt-note { font-size: 13px; color: #777; font-weight: bold; margin-left: 8px; }
+.ev-note { margin-top: 6px; font-weight: 900; color: #b45309; text-align: center; font-size: 17px; }
 .small { font-size: 13px; color: #777; }
 
 /* お宝カード（めくり演出） */

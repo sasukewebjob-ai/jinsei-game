@@ -53,12 +53,30 @@ const UI = (() => {
     });
   }
 
-  // マスに止まったときのイベント表示
-  function eventModal(sq, p) {
+  // マスに止まったときのイベント表示（増減額を大きく表示）
+  function evAmount(sq) {
+    let a = null, note = "";
+    if (sq.t === "money") a = sq.amount;
+    else if (sq.t === "accident") { a = -sq.amount; note = "（生命保険があればセーフ）"; }
+    else if (sq.t === "housedmg") { a = -sq.amount; note = "（火災保険でセーフ／家なしなら-¥100,000）"; }
+    else if (sq.t === "gift") { a = sq.amount; note = "× ほかの全員からもらう！"; }
+    else if (sq.t === "finalbet") { a = sq.stake; note = "を賭けた大勝負！"; }
+    if (a == null) return null;
+    return h("div", { class: "ev-amt " + (a > 0 ? "plus" : "minus") },
+      (a > 0 ? "+" : "") + fmt(a),
+      note ? h("span", { class: "ev-amt-note" }, note) : null,
+    );
+  }
+
+  function eventModal(sq, p, extra) {
     Sound.play("land");
+    const body = [h("div", { class: "ev-text" }, sq.text)];
+    const amt = evAmount(sq);
+    if (amt) body.push(amt);
+    if (extra) body.push(h("div", { class: "ev-note" }, extra));
     return modal({
       title: `${squareIcon(sq)} ${sq.label}`,
-      body: h("div", { class: "ev-text" }, sq.text),
+      body,
       color: p ? p.color : "",
     });
   }

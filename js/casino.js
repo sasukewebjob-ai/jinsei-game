@@ -80,20 +80,43 @@ const Casino = (() => {
     }
   }
 
-  async function lottery(p) {
+  // premium=true はゴール前のプラチナ宝くじ（1枚100万・1等5000万）
+  async function lottery(p, premium) {
+    const price = premium ? 1000000 : LOTTERY_PRICE;
+    const name = premium ? "💎 プラチナ宝くじ" : "🎟️ 宝くじ売り場";
+    const odds = premium
+      ? `1等 ¥50,000,000（2%）／2等 ¥5,000,000（8%）`
+      : `1等 ¥10,000,000（1%）／2等 ¥500,000（5%）／3等 ¥150,000（14%）`;
     while (true) {
-      if (p.money < LOTTERY_PRICE) {
-        await UI.modal({ title: "🎟️ 宝くじ", body: `所持金が足りない…（1枚 ${fmt(LOTTERY_PRICE)}）` });
+      if (p.money < price) {
+        await UI.modal({ title: name, body: `所持金が足りない…（1枚 ${fmt(price)}）` });
         return;
       }
       const b = await UI.modal({
-        title: "🎟️ 宝くじ売り場",
-        body: `1枚 ${fmt(LOTTERY_PRICE)}。夢を買う？\n1等 ¥10,000,000（1%）／2等 ¥500,000（5%）／3等 ¥150,000（14%）`,
+        title: name,
+        body: `1枚 ${fmt(price)}。夢を買う？\n${odds}`,
         buttons: ["買う！", "やめる"],
       });
       if (b === 1) return;
-      Game.pay(p, LOTTERY_PRICE);
+      Game.pay(p, price);
       const r = Math.random();
+      if (premium) {
+        if (r < 0.02) {
+          Sound.play("fanfare");
+          Game.gain(p, 50000000);
+          await UI.modal({ title: "🎆🎆🎆 プラチナ1等！！！ 🎆🎆🎆", body: `奇跡が起きた！！ +${fmt(50000000)}！！！\n伝説の億万長者誕生！！` });
+          UI.log(`🎆 ${p.name}がプラチナ宝くじ1等 ${fmt(50000000)}！！！`);
+        } else if (r < 0.10) {
+          Sound.play("win");
+          Game.gain(p, 5000000);
+          await UI.modal({ title: "🎉 プラチナ2等！", body: `2等！ +${fmt(5000000)}！！` });
+          UI.log(`🎉 ${p.name}がプラチナ宝くじ2等 +${fmt(5000000)}`);
+        } else {
+          Sound.play("bad");
+          await UI.modal({ title: "😇 はずれ…", body: `${fmt(price)}が夜空に消えた…` });
+        }
+        continue;
+      }
       if (r < 0.01) {
         Sound.play("fanfare");
         Game.gain(p, 10000000);

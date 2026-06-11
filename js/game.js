@@ -1,7 +1,7 @@
 // ゲーム本体：ターン進行のステートマシン・マス効果の解決・精算・セーブ
 
 const Game = (() => {
-  const SAVE_KEY = "jinsei-game-save-v1";
+  const SAVE_KEY = "jinsei-game-save-v2";
   let st = null;   // { players, cur, round, goalCount, stockPrice, deck, discard, houseDeck }
 
   // ---------- ユーティリティ ----------
@@ -47,10 +47,10 @@ const Game = (() => {
     if (amount >= 0) gain(p, amount); else pay(p, -amount);
   }
 
-  function paySalary(p) {
-    const a = p.job ? p.job.s : SALARY_JOBLESS;
+  function paySalary(p, mult = 1) {
+    const a = (p.job ? p.job.s : SALARY_JOBLESS) * mult;
     gain(p, a);
-    UI.log(`💴 ${p.name}の給料日 +${fmt(a)}${p.job ? "" : "（無職なのでバイト代）"}`);
+    UI.log(`💴 ${p.name}の給料日 +${fmt(a)}${p.job ? "" : "（無職なのでバイト代）"}${mult > 1 ? "✨ダブル給料！" : ""}`);
   }
 
   // ---------- ゲーム開始 ----------
@@ -197,8 +197,8 @@ const Game = (() => {
         break;
 
       case "payday":
-        await UI.eventModal(sq, p);
-        paySalary(p);
+        await UI.eventModal(sq, p, "✨ 止まったからダブル給料！！");
+        paySalary(p, 2);
         break;
 
       case "card":
@@ -229,7 +229,8 @@ const Game = (() => {
         await chooseNext(p, sq);     // 次のターンに進む方向を先に選ぶ
         break;
 
-      case "job":       await jobSquare(p, sq.pool); break;
+      case "jobsq":     await jobLand(p, sq); break;
+      case "jobfair":   await jobFair(p, sq.pool); break;
       case "jobchange": await jobChange(p); break;
       case "marriage":  await marriage(p); break;
       case "child":     await childBirth(p, sq.count); break;
@@ -245,13 +246,25 @@ const Game = (() => {
 
       case "lottery":
         await UI.eventModal(sq, p);
-        await Casino.lottery(p);
+        await Casino.lottery(p, sq.premium);
         break;
 
       case "disaster": await disaster(p, sq); break;
       case "accident": await accident(p, sq); break;
       case "fire":     await fireEvent(p, sq); break;
+      case "housedmg": await houseDamage(p, sq); break;
       case "layoff":   await layoff(p, sq); break;
+      case "finalbet": await finalBet(p, sq); break;
+
+      case "gift": {
+        await UI.eventModal(sq, p);
+        const os = st.players.filter(o => o.id !== p.id && !o.goaled);
+        os.forEach(o => pay(o, sq.amount));
+        if (os.length) gain(p, sq.amount * os.length);
+        await UI.modal({ title: `🎁 ${sq.label}！`, body: `全員から ${fmt(sq.amount)} ずつ、合計 +${fmt(sq.amount * os.length)} もらった！`, color: p.color });
+        UI.log(`🎁 ${p.name}の${sq.label}！全員から合計 +${fmt(sq.amount * os.length)}`);
+        break;
+      }
 
       case "stockboom":
         await UI.eventModal(sq, p);
@@ -442,8 +455,48 @@ const Game = (() => {
       )));
   }
 
-  async function jobSquare(p, pool) {
+  // 職業マス：止まったら就職（職持ちなら転職もできる）
+  async function jobLand(p, sq) {
+    const j = sq.job;
+    await UI.eventModal(sq, p);
+    if (!p.job) {
+      p.job = j;
+      Sound.play("win");
+      await UI.modal({ title: `${j.e} ${j.n}に就職！`, body: `${j.d}！\n給料は ${fmt(j.s)}（給料日マスでもらえる・止まれば2倍）`, color: p.color });
+      UI.log(`💼 ${p.name}は${j.n}になった（給料 ${fmt(j.s)}）`);
+      return;
+    }
+    if (p.job.n === j.n) {
+      await UI.modal({ title: `${j.e} 同業者と意気投合`, body: `${j.n}どうしで話が弾んだ。明日からも頑張ろう！` });
+      return;
+    }
+    const i = await UI.modal({
+      title: `${j.e} ${j.n}に転職する？`,
+      body: `いまの仕事：${p.job.e} ${p.job.n}（給料 ${fmt(p.job.s)}）\n転職先：${j.e} ${j.n}（給料 ${fmt(j.s)}）`,
+      buttons: [`${j.n}に転職する！`, "今のままでいい"],
+    });
+    if (i === 0) {
+      p.job = j;
+      Sound.play("win");
+      UI.log(`💼 ${p.name}は${j.n}に転職！（給料 ${fmt(j.s)}）`);
+    }
+  }
+
+  // 就職フェア（止まるマス）：無職なら必ず就職、職持ちは転職チャンス
+  async function jobFair(p, pool) {
     await UI.eventModal(SQUARES[p.pos], p);
+    if (!p.job) { await jobSquare(p, pool); return; }
+    const offers = pickN(pool === "pro" ? JOBS_PRO : JOBS_NORMAL, 3);
+    const buttons = offers.map(j => `${j.e} ${j.n}（給料 ${fmt(j.s)}）`);
+    buttons.push(`今のまま（${p.job.n}）`);
+    const idx = await UI.modal({ title: "💼 就職フェア（転職してもOK）", body: jobCardsView(offers), buttons });
+    if (idx === offers.length) return;
+    p.job = offers[idx];
+    Sound.play("win");
+    UI.log(`💼 ${p.name}は${p.job.n}に転職！（給料 ${fmt(p.job.s)}）`);
+  }
+
+  async function jobSquare(p, pool) {
     const list = pool === "pro" ? JOBS_PRO : JOBS_NORMAL;
     const offers = pickN(list, 3);
     const idx = await UI.modal({
@@ -617,6 +670,49 @@ const Game = (() => {
     Sound.play("bad");
     await UI.modal({ title: "🔥 全焼…", body: `${hs.e} ${hs.n} が燃えてしまった…（${fmt(hs.p)}の損失）` });
     UI.log(`🔥 ${p.name}の${hs.n}が全焼…`);
+  }
+
+  // 住宅被害：火災保険でセーフ／家なしなら雑費のみ／家ありは修理費
+  async function houseDamage(p, sq) {
+    await UI.eventModal(sq, p);
+    if (consumeOmamori(p)) { await omamoriModal(); return; }
+    if (p.insurance.fire) {
+      Sound.play("win");
+      await UI.modal({ title: "🧯 火災保険発動！", body: "保険が修理費を全額カバー！入っててよかった〜" });
+      UI.log(`🧯 ${p.name}は火災保険でセーフ`);
+      return;
+    }
+    if (p.houses.length === 0) {
+      pay(p, 100000);
+      await UI.modal({ title: "☔ 家がなくてラッキー？", body: `家を持っていないので被害は最小限。雑費 ${fmt(-100000)} で済んだ！` });
+      return;
+    }
+    pay(p, sq.amount);
+    await UI.modal({ title: "🌪️ 修理費が痛い…", body: `家の修理費 ${fmt(-sq.amount)} を支払った…` });
+    UI.log(`🌪️ ${p.name} ${sq.label} -${fmt(sq.amount)}`);
+  }
+
+  // 人生最後の大勝負：ルーレット6以上で勝ち
+  async function finalBet(p, sq) {
+    await UI.eventModal(sq, p);
+    const i = await UI.modal({
+      title: "🎲 人生最後の大勝負",
+      body: `ルーレットで6以上なら +${fmt(sq.stake)}、5以下なら ${fmt(-sq.stake)}！`,
+      buttons: ["🔥 挑む！", "やめておく"],
+    });
+    if (i === 1) { UI.log(`🎲 ${p.name}は大勝負を見送った`); return; }
+    const k = await Roulette.spin();
+    if (k >= 6) {
+      Sound.play("fanfare");
+      gain(p, sq.stake);
+      await UI.modal({ title: `「${k}」！勝負あり！！`, body: `大勝負に勝った！ +${fmt(sq.stake)}！！` });
+      UI.log(`🎲 ${p.name}が人生最後の大勝負に勝利！ +${fmt(sq.stake)}`);
+    } else {
+      Sound.play("bad");
+      pay(p, sq.stake);
+      await UI.modal({ title: `「${k}」…無念…`, body: `大勝負に敗北… ${fmt(-sq.stake)}…` });
+      UI.log(`🎲 ${p.name}は人生最後の大勝負に敗北… -${fmt(sq.stake)}`);
+    }
   }
 
   async function layoff(p, sq) {
