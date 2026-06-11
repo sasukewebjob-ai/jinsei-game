@@ -44,7 +44,11 @@ const UI = (() => {
         btn.onclick = () => { Sound.play("click"); ov.hidden = true; res(i); };
         bb.appendChild(btn);
       });
-      $("#modal-box").style.borderColor = color || "#5b4636";
+      const box = $("#modal-box");
+      box.style.borderColor = color || "#5b4636";
+      box.classList.remove("modal-pop");
+      void box.offsetWidth;            // アニメ再トリガー
+      box.classList.add("modal-pop");
       ov.hidden = false;
     });
   }

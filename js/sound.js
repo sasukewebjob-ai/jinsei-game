@@ -33,7 +33,9 @@ const Sound = (() => {
     bad:     () => { tone(220, 0.18, "sawtooth", 0.04); tone(165, 0.25, "sawtooth", 0.04, 0.15); },
     win:     () => { [523, 659, 784].forEach((f, i) => tone(f, 0.12, "square", 0.04, i * 0.09)); },
     fanfare: () => { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, 0.16, "square", 0.05, i * 0.13)); },
-    spin:    () => { for (let i = 0; i < 18; i++) tone(600 + Math.random() * 300, 0.04, "square", 0.02, i * 0.13); },
+    spin:    () => tone(620, 0.06, "square", 0.025),
+    tick:    () => tone(1150, 0.025, "square", 0.022),
+    drum:    () => { for (let i = 0; i < 7; i++) tone(135 + Math.random() * 35, 0.045, "triangle", 0.08, i * 0.055); },
   };
 
   return {

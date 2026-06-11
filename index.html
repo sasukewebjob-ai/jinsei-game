@@ -10,11 +10,16 @@
 
 <!-- タイトル画面 -->
 <div id="screen-title" class="screen">
+  <div class="t-sun"></div>
+  <div class="t-cloud c1"></div><div class="t-cloud c2"></div><div class="t-cloud c3"></div>
+  <div class="t-hill h1"></div><div class="t-hill h2"></div>
+  <div class="t-wheel"></div>
+  <div class="t-road"><div class="t-car">🚗</div></div>
   <div class="title-wrap">
     <div class="title-logo">
       <span>波</span><span>乱</span><span>万</span><span>丈</span>
     </div>
-    <h1 class="title-main">人生ゲーム</h1>
+    <h1 class="title-main"><span>人</span><span>生</span><span>ゲ</span><span>ー</span><span>ム</span></h1>
     <p class="title-sub">〜 どん底と大逆転のジェットコースターライフ 〜</p>
     <div class="title-buttons">
       <button id="btn-newgame" class="btn btn-big btn-primary">はじめから</button>
@@ -93,6 +98,7 @@
     <div class="roulette-pointer">▼</div>
     <svg id="roulette-svg" viewBox="-110 -110 220 220"></svg>
     <div id="roulette-result" hidden></div>
+    <div id="roulette-hint"></div>
     <button id="btn-do-spin" class="btn btn-big btn-primary">回す！</button>
   </div>
 </div>
@@ -109,7 +115,10 @@
 <script src="js/data-cards.js"></script>
 <script src="js/player.js"></script>
 <script src="js/data-board.js"></script>
+<script src="js/scenery.js"></script>
 <script src="js/sound.js"></script>
+<script src="js/bgm.js"></script>
+<script src="js/fx.js"></script>
 <script src="js/roulette.js"></script>
 <script src="js/board.js"></script>
 <script src="js/ui.js"></script>

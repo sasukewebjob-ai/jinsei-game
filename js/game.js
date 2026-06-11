@@ -22,6 +22,8 @@ const Game = (() => {
     p.money += a;
     Sound.play("coin");
     UI.toast(`💰 ${p.name} +${fmt(a)}`, "good");
+    Board.floatText(p, `+${fmt(a)}`, "#5dff9e");
+    Fx.coins(Board.tokenScreenPos(p), true, Math.min(14, 6 + Math.floor(a / 300000)));
     UI.renderSidebar(st);
   }
 
@@ -36,6 +38,8 @@ const Game = (() => {
     p.money -= a;
     Sound.play("pay");
     UI.toast(`💸 ${p.name} -${fmt(a)}`, "bad");
+    Board.floatText(p, `-${fmt(a)}`, "#ff8a8a");
+    Fx.coins(Board.tokenScreenPos(p), false, 7);
     UI.renderSidebar(st);
   }
 
@@ -69,6 +73,7 @@ const Game = (() => {
     UI.showScreen("game");
     Board.build(st);
     UI.renderSidebar(st);
+    Bgm.play("game");
   }
 
   // ---------- メインループ ----------
@@ -278,10 +283,15 @@ const Game = (() => {
     Sound.play("win");
     await UI.modal({
       title: "🃏 お宝カードGET！",
-      body: h("div", { class: "card-show" },
-        h("div", { class: "card-emoji" }, c.e),
-        h("div", { class: "card-name" }, c.n),
-        h("div", { class: "card-desc" }, c.d + (c.passive ? "（自動発動）" : "")),
+      body: h("div", { class: "flip-scene" },
+        h("div", { class: "flip-inner" },
+          h("div", { class: "flip-face flip-back" }, "🎁", h("small", {}, "お宝カード")),
+          h("div", { class: "flip-face flip-front" },
+            h("div", { class: "card-emoji" }, c.e),
+            h("div", { class: "card-name" }, c.n),
+            h("div", { class: "card-desc" }, c.d + (c.passive ? "（自動発動）" : "")),
+          ),
+        ),
       ),
     });
     UI.log(`🃏 ${p.name}は「${c.n}」を手に入れた`);
@@ -656,6 +666,7 @@ const Game = (() => {
     p.debt = 0; p.stocks = 0; p.houses = []; p.cards = [];
     p.settle = lines;
 
+    Fx.confetti(70);
     const tbl = h("table", { class: "settle" },
       lines.map(([t, v]) => h("tr", {}, h("td", {}, t), h("td", { class: v < 0 ? "neg" : "" }, fmt(v)))),
       h("tr", { class: "settle-total" }, h("td", {}, "総資産"), h("td", {}, fmt(total))),
@@ -665,22 +676,33 @@ const Game = (() => {
     UI.renderSidebar(st);
   }
 
-  function showResults() {
+  // 結果発表：ドラムロールで下位から順に発表（クリックでスキップ）
+  async function showResults() {
     clearSave();
+    Bgm.play("result");
     const ranked = [...st.players].sort((a, b) => b.money - a.money);
     const medal = ["🥇", "🥈", "🥉", "4位", "5位", "6位"];
     const el = document.getElementById("result-list");
     while (el.firstChild) el.removeChild(el.firstChild);
-    ranked.forEach((p, i) => {
-      el.appendChild(h("div", { class: "result-row" + (i === 0 ? " result-win" : ""), style: `border-color:${p.color}` },
+    const rows = ranked.map((p, i) => {
+      const row = h("div", { class: "result-row" + (i === 0 ? " result-win" : ""), style: `border-color:${p.color}` },
         h("div", { class: "result-rank" }, medal[i]),
         h("div", { class: "result-name", style: `color:${p.color}` }, p.name),
         h("div", { class: "result-money" }, fmt(p.money)),
         h("div", { class: "result-detail" }, (p.settle || []).map(([t, v]) => `${t} ${fmt(v)}`).join("　／　")),
-      ));
+      );
+      el.appendChild(row);
+      return row;
     });
     UI.showScreen("result");
-    Sound.play("fanfare");
+    let skip = false;
+    document.getElementById("screen-result").onclick = () => { skip = true; };
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (!skip) await wait(i === 0 ? 1300 : 850);
+      Sound.play(i === 0 ? "fanfare" : "drum");
+      rows[i].classList.add("revealed");
+      if (i === 0) Fx.confetti(120);
+    }
   }
 
   // ---------- 株価変動・セーブ ----------

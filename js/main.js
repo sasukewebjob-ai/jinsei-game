@@ -30,6 +30,7 @@
 
   $("#btn-newgame").onclick = () => {
     Sound.play("click");
+    Bgm.play("title");
     renderCount();
     renderInputs();
     UI.showScreen("setup");
@@ -53,7 +54,9 @@
   };
 
   $("#btn-sound").onclick = () => {
-    $("#btn-sound").textContent = Sound.toggle() ? "♪ ON" : "♪ OFF";
+    const on = Sound.toggle();
+    Bgm.toggle();
+    $("#btn-sound").textContent = on ? "♪ ON" : "♪ OFF";
   };
 
   $("#btn-quit").onclick = () => {
