@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>波乱万丈人生ゲーム</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- タイトル画面 -->
+<div id="screen-title" class="screen">
+  <div class="title-wrap">
+    <div class="title-logo">
+      <span>波</span><span>乱</span><span>万</span><span>丈</span>
+    </div>
+    <h1 class="title-main">人生ゲーム</h1>
+    <p class="title-sub">〜 どん底と大逆転のジェットコースターライフ 〜</p>
+    <div class="title-buttons">
+      <button id="btn-newgame" class="btn btn-big btn-primary">はじめから</button>
+      <button id="btn-continue" class="btn btn-big" hidden>続きから</button>
+    </div>
+    <p class="title-note">🎲 2〜6人 パス＆プレイ専用 🎲</p>
+  </div>
+</div>
+
+<!-- プレイヤー設定画面 -->
+<div id="screen-setup" class="screen" hidden>
+  <div class="setup-wrap">
+    <h2>プレイヤー設定</h2>
+    <div class="setup-count">
+      <span>あそぶ人数：</span>
+      <div id="count-buttons"></div>
+    </div>
+    <div id="player-inputs"></div>
+    <div class="setup-actions">
+      <button id="btn-back-title" class="btn">← もどる</button>
+      <button id="btn-start" class="btn btn-primary btn-big">ゲームスタート！</button>
+    </div>
+  </div>
+</div>
+
+<!-- ゲーム画面 -->
+<div id="screen-game" class="screen" hidden>
+  <header id="game-header">
+    <div class="header-title">🎲 波乱万丈人生ゲーム</div>
+    <div id="header-turn"></div>
+    <div class="header-actions">
+      <button id="btn-zoom" class="btn btn-small">🗺️ 全体マップ</button>
+      <button id="btn-sound" class="btn btn-small">♪ ON</button>
+      <button id="btn-quit" class="btn btn-small">中断</button>
+    </div>
+  </header>
+  <div id="game-main">
+    <div id="board-area">
+      <svg id="board-svg" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="action-bar" hidden>
+        <button id="btn-assets" class="btn">🎒 カード・資産</button>
+        <button id="btn-spin" class="btn btn-primary btn-big">🎡 ルーレットを回す！</button>
+      </div>
+      <div id="toast-area"></div>
+    </div>
+    <aside id="sidebar">
+      <div id="player-panels"></div>
+      <div id="stock-ticker"></div>
+      <div id="log-box"><div id="log-list"></div></div>
+    </aside>
+  </div>
+</div>
+
+<!-- 結果画面 -->
+<div id="screen-result" class="screen" hidden>
+  <div class="result-wrap">
+    <h2>🏆 結果発表 🏆</h2>
+    <div id="result-list"></div>
+    <button id="btn-to-title" class="btn btn-big btn-primary">タイトルへ</button>
+  </div>
+</div>
+
+<!-- 手番交代オーバーレイ -->
+<div id="overlay-handoff" class="overlay" hidden>
+  <div id="handoff-box">
+    <div id="handoff-label">─ つぎの番 ─</div>
+    <div id="handoff-name"></div>
+    <div id="handoff-info"></div>
+    <button id="btn-handoff-go" class="btn btn-big btn-primary">スタート！</button>
+  </div>
+</div>
+
+<!-- ルーレットオーバーレイ -->
+<div id="overlay-roulette" class="overlay" hidden>
+  <div class="roulette-box">
+    <div class="roulette-pointer">▼</div>
+    <svg id="roulette-svg" viewBox="-110 -110 220 220"></svg>
+    <div id="roulette-result" hidden></div>
+    <button id="btn-do-spin" class="btn btn-big btn-primary">回す！</button>
+  </div>
+</div>
+
+<!-- 汎用モーダル -->
+<div id="overlay-modal" class="overlay" hidden>
+  <div id="modal-box">
+    <div id="modal-title"></div>
+    <div id="modal-body"></div>
+    <div id="modal-buttons"></div>
+  </div>
+</div>
+
+<script src="js/data-cards.js"></script>
+<script src="js/player.js"></script>
+<script src="js/data-board.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/roulette.js"></script>
+<script src="js/board.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/casino.js"></script>
+<script src="js/game.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
