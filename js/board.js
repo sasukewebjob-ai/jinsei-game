@@ -4,7 +4,7 @@ const Board = (() => {
   const NS = "http://www.w3.org/2000/svg";
   const FOLLOW_W = 1500;            // 追従カメラの表示幅（盤面座標系）
   let svg = null, gTokens = null, gFx = null;
-  let tokenEls = {}, tokenXY = {};
+  let tokenEls = {}, tokenXY = {}, houseEls = null;
   let players = [];
   let view = null, target = null, zoomAll = false, lastXY = null;
 
@@ -62,6 +62,12 @@ const Board = (() => {
       chains.forEach(d => gRoad.appendChild(el("path", { d, class: cls, fill: "none" })));
     });
     svg.appendChild(gRoad);
+
+    // 物件（購入するとプレイヤーカラーの表札が付く）
+    const gHouses = el("g", {});
+    svg.appendChild(gHouses);
+    houseEls = Scenery.houses(gHouses);
+    syncHouses(st);
 
     // マス（影→本体→グロス→アイコン→ラベル）
     const gSq = el("g", {});
@@ -123,6 +129,27 @@ const Board = (() => {
     enableDrag();
   }
 
+  // 物件の状態を反映（売出中＝グレー／所有＝表札／焼失＝黒こげ）
+  function syncHouses(st) {
+    if (!houseEls) return;
+    const owner = {};
+    st.players.forEach(p => p.houses.forEach(hi => { owner[hi] = p; }));
+    const burned = new Set(st.burned || []);
+    for (const hi in houseEls) {
+      const e = houseEls[hi];
+      const o = owner[hi];
+      e.g.classList.toggle("hs-sale", !o && !burned.has(+hi));
+      e.g.classList.toggle("hs-burned", burned.has(+hi));
+      if (o) {
+        e.plateTx.textContent = o.name.length > 6 ? o.name.slice(0, 6) + "…" : o.name;
+        e.plateBg.setAttribute("fill", o.color);
+        e.plateG.setAttribute("display", "");
+      } else {
+        e.plateG.setAttribute("display", "none");
+      }
+    }
+  }
+
   // 結婚・子供に応じて車にピンを乗せる
   function syncPins(p) {
     const g = tokenEls[p.id];
@@ -174,9 +201,13 @@ const Board = (() => {
   function stepToken(p, toId) {
     const s = SQUARES[toId];
     const from = tokenXY[p.id] || { x: s.x, y: s.y };
+    // 車を進行方向に向ける（左向きは反転して上下が逆さにならないように）
     const flip = tokenEls[p.id].querySelector(".car-flip");
-    if (Math.abs(s.x - from.x) > 6) {
-      flip.setAttribute("transform", s.x < from.x ? "scale(-1,1)" : "");
+    const ddx = s.x - from.x, ddy = s.y - from.y;
+    if (Math.abs(ddx) > 2 || Math.abs(ddy) > 2) {
+      const deg = Math.atan2(ddy, ddx) * 180 / Math.PI;
+      flip.setAttribute("transform",
+        (deg > 90 || deg < -90) ? `scale(-1,1) rotate(${(180 - deg).toFixed(1)})` : `rotate(${deg.toFixed(1)})`);
     }
     Sound.play("step");
     focusXY(s.x, s.y);
@@ -286,7 +317,7 @@ const Board = (() => {
 
   return {
     build, placeAll, stepToken, focusPlayer, setCurrent, toggleZoom,
-    floatText, tokenScreenPos,
+    floatText, tokenScreenPos, syncHouses,
     jump: p => stepToken(p, p.pos),
   };
 })();

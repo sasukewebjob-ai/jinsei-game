@@ -226,6 +226,33 @@ body {
 .sq-jobfair    { fill: #0d9488; }
 .sq-gift       { fill: #f4729c; }
 .sq-finalbet   { fill: #b45309; }
+.sq-duel       { fill: #be123c; }
+.sq-choice     { fill: #7c3aed; }
+
+/* 物件（マップ上の家） */
+.hs .hs-flag { display: none; }
+.hs-sale .hs-flag { display: block; }
+.hs-sale { filter: grayscale(.8) opacity(.78); }
+.hs-burned { filter: brightness(.32) grayscale(1); }
+.hs-plate text { text-anchor: middle; }
+
+/* 動く住人・鳥 */
+.sc-walker {
+  transform-box: fill-box; transform-origin: center;
+  animation: sc-walkk 14s linear infinite;
+}
+@keyframes sc-walkk {
+  0%   { transform: translateX(0) scaleX(1); }
+  48%  { transform: translateX(150px) scaleX(1); }
+  52%  { transform: translateX(150px) scaleX(-1); }
+  98%  { transform: translateX(0) scaleX(-1); }
+  100% { transform: translateX(0) scaleX(1); }
+}
+.sc-fly { animation: sc-flyk 34s linear infinite; }
+@keyframes sc-flyk {
+  from { transform: translate(0, 0); }
+  to   { transform: translate(1600px, -50px); }
+}
 
 .sq-icon { font-size: 27px; text-anchor: middle; }
 .sq-label {
@@ -429,6 +456,7 @@ body {
 .jc-n { font-weight: 900; font-size: 16px; margin: 2px 0; }
 .jc-s { color: #1a7f37; font-weight: bold; font-size: 14px; }
 .jc-d { color: #888; font-size: 12px; margin-top: 4px; }
+.jc-k { color: #b45309; font-size: 11.5px; font-weight: bold; margin-top: 4px; }
 
 /* 賭けUI */
 .bet-ui { text-align: center; }
@@ -464,6 +492,31 @@ body {
   18% { opacity: 1; }
   100% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; }
 }
+/* お祝いカットイン */
+.fx-cutin {
+  position: fixed; left: 0; right: 0; top: 34%;
+  z-index: 96; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(232, 89, 12, .93) 16%, rgba(232, 89, 12, .93) 84%, transparent);
+  transform: skewY(-2.5deg);
+  padding: 16px 0;
+  overflow: hidden;
+  animation: cutinband 2s ease forwards;
+}
+.fx-cutin-inner {
+  display: flex; gap: 22px; justify-content: center; align-items: center;
+  font-size: 44px; font-weight: 900; color: #fff;
+  text-shadow: 0 4px 0 rgba(0, 0, 0, .3);
+  animation: cutintext 2s ease forwards;
+}
+.fx-cutin-emoji { font-size: 54px; }
+@keyframes cutinband { 0% { opacity: 0; } 8% { opacity: 1; } 88% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes cutintext {
+  0% { transform: translateX(-60vw); }
+  16% { transform: translateX(0); }
+  84% { transform: translateX(0); }
+  100% { transform: translateX(60vw); }
+}
+
 .fx-confetti {
   position: fixed; top: -24px; z-index: 95; pointer-events: none;
   border-radius: 2px;
@@ -509,6 +562,13 @@ body {
 .result-win.revealed { transform: scale(1.03); }
 .result-rank { grid-area: rank; font-size: 34px; font-weight: 900; text-align: center; }
 .result-name { grid-area: name; font-size: 20px; font-weight: 900; }
+.result-title {
+  display: inline-block; margin-left: 10px;
+  font-size: 12px; font-weight: 900; color: #b45309;
+  background: #fff3d6; border: 2px solid #f4b630;
+  border-radius: 999px; padding: 2px 10px;
+  vertical-align: middle;
+}
 .result-money { grid-area: money; font-size: 24px; font-weight: 900; color: #1a7f37; }
 .result-detail { grid-area: detail; font-size: 11.5px; color: #888; }
 #btn-to-title { margin-top: 14px; }

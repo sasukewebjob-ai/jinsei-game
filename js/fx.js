@@ -36,5 +36,25 @@ const Fx = (() => {
     }
   }
 
-  return { coins, confetti };
+  // 画面を横切るお祝いカットイン
+  function cutin(emojiStr, text) {
+    const w = document.createElement("div");
+    w.className = "fx-cutin";
+    const inner = document.createElement("div");
+    inner.className = "fx-cutin-inner";
+    const e1 = document.createElement("span");
+    e1.className = "fx-cutin-emoji";
+    e1.textContent = emojiStr;
+    const e2 = document.createElement("span");
+    e2.textContent = text;
+    const e3 = document.createElement("span");
+    e3.className = "fx-cutin-emoji";
+    e3.textContent = emojiStr;
+    inner.append(e1, e2, e3);
+    w.appendChild(inner);
+    document.body.appendChild(w);
+    setTimeout(() => w.remove(), 2100);
+  }
+
+  return { coins, confetti, cutin };
 })();

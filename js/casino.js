@@ -46,13 +46,17 @@ const Casino = (() => {
       await UI.modal({ title: `出た数字は「${nxt}」…引き分け！`, body: "賭け金はそのまま返ってきた。" });
       UI.log(`🎰 ${p.name}のハイ＆ローは引き分け`);
     } else if ((g === 0) === (nxt > base)) {
+      const gamer = p.job && p.job.n === "プロゲーマー";
+      const win = Math.round(bet * (gamer ? 1.5 : 1));
       Sound.play("win");
-      Game.gain(p, bet);
-      await UI.modal({ title: `出た数字は「${nxt}」！勝ち！！`, body: `${fmt(bet)} が2倍になって返ってきた！（+${fmt(bet)}）` });
-      UI.log(`🎰 ${p.name}がハイ＆ローで勝利！ +${fmt(bet)}`);
+      Game.gain(p, win);
+      p.stats && (p.stats.gamble = (p.stats.gamble || 0) + win);
+      await UI.modal({ title: `出た数字は「${nxt}」！勝ち！！`, body: `+${fmt(win)}！${gamer ? "\n🎮 プロゲーマーの本領！勝ち額1.5倍！" : ""}` });
+      UI.log(`🎰 ${p.name}がハイ＆ローで勝利！ +${fmt(win)}`);
     } else {
       Sound.play("bad");
       Game.pay(p, bet);
+      p.stats && (p.stats.gamble = (p.stats.gamble || 0) - bet);
       await UI.modal({ title: `出た数字は「${nxt}」…負け…`, body: `賭け金 ${fmt(bet)} を失った…` });
       UI.log(`🎰 ${p.name}がハイ＆ローで敗北… -${fmt(bet)}`);
     }
@@ -68,13 +72,17 @@ const Casino = (() => {
     if (pick === 10) return;
     const k = await Roulette.spin();
     if (k === pick + 1) {
+      const gamer = p.job && p.job.n === "プロゲーマー";
+      const win = Math.round(bet * 7 * (gamer ? 1.5 : 1));
       Sound.play("fanfare");
-      Game.gain(p, bet * 7);
-      await UI.modal({ title: `🎆 「${k}」！大的中！！！`, body: `${fmt(bet)} が8倍に！！（+${fmt(bet * 7)}）` });
-      UI.log(`🎆 ${p.name}が一点賭けで大的中！！ +${fmt(bet * 7)}`);
+      Game.gain(p, win);
+      p.stats && (p.stats.gamble = (p.stats.gamble || 0) + win);
+      await UI.modal({ title: `🎆 「${k}」！大的中！！！`, body: `+${fmt(win)}！！${gamer ? "\n🎮 プロゲーマーの本領！勝ち額1.5倍！" : ""}` });
+      UI.log(`🎆 ${p.name}が一点賭けで大的中！！ +${fmt(win)}`);
     } else {
       Sound.play("bad");
       Game.pay(p, bet);
+      p.stats && (p.stats.gamble = (p.stats.gamble || 0) - bet);
       await UI.modal({ title: `出たのは「${k}」…はずれ…`, body: `賭け金 ${fmt(bet)} を失った…` });
       UI.log(`🎰 ${p.name}の一点賭けははずれ… -${fmt(bet)}`);
     }
@@ -99,16 +107,20 @@ const Casino = (() => {
       });
       if (b === 1) return;
       Game.pay(p, price);
+      p.stats && (p.stats.gamble = (p.stats.gamble || 0) - price);
+      const hit = a => { p.stats && (p.stats.gamble = (p.stats.gamble || 0) + a); Game.gain(p, a); };
       const r = Math.random();
       if (premium) {
         if (r < 0.02) {
+          Fx.cutin("🎆", "プラチナ1等！！！");
+          await new Promise(res => setTimeout(res, 1100));
           Sound.play("fanfare");
-          Game.gain(p, 50000000);
+          hit(50000000);
           await UI.modal({ title: "🎆🎆🎆 プラチナ1等！！！ 🎆🎆🎆", body: `奇跡が起きた！！ +${fmt(50000000)}！！！\n伝説の億万長者誕生！！` });
           UI.log(`🎆 ${p.name}がプラチナ宝くじ1等 ${fmt(50000000)}！！！`);
         } else if (r < 0.10) {
           Sound.play("win");
-          Game.gain(p, 5000000);
+          hit(5000000);
           await UI.modal({ title: "🎉 プラチナ2等！", body: `2等！ +${fmt(5000000)}！！` });
           UI.log(`🎉 ${p.name}がプラチナ宝くじ2等 +${fmt(5000000)}`);
         } else {
@@ -118,18 +130,20 @@ const Casino = (() => {
         continue;
       }
       if (r < 0.01) {
+        Fx.cutin("🎆", "１等当選！！！");
+        await new Promise(res => setTimeout(res, 1100));
         Sound.play("fanfare");
-        Game.gain(p, 10000000);
+        hit(10000000);
         await UI.modal({ title: "🎆🎆 1等当選！！！ 🎆🎆", body: `まさかの1等！！ +${fmt(10000000)}！！人生大逆転！！` });
         UI.log(`🎆 ${p.name}が宝くじ1等 ${fmt(10000000)} を当てた！！`);
       } else if (r < 0.06) {
         Sound.play("win");
-        Game.gain(p, 500000);
+        hit(500000);
         await UI.modal({ title: "🎉 2等当選！", body: `2等！ +${fmt(500000)}！` });
         UI.log(`🎉 ${p.name}が宝くじ2等 +${fmt(500000)}`);
       } else if (r < 0.20) {
         Sound.play("coin");
-        Game.gain(p, 150000);
+        hit(150000);
         await UI.modal({ title: "😊 3等当選", body: `3等！ +${fmt(150000)}` });
         UI.log(`😊 ${p.name}が宝くじ3等 +${fmt(150000)}`);
       } else {

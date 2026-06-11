@@ -1,7 +1,9 @@
 // ゲーム本体：ターン進行のステートマシン・マス効果の解決・精算・セーブ
 
 const Game = (() => {
-  const SAVE_KEY = "jinsei-game-save-v2";
+  const SAVE_KEY = "jinsei-game-save-v3";
+
+  const hasJob = (p, name) => p.job && p.job.n === name;
   let st = null;   // { players, cur, round, goalCount, stockPrice, deck, discard, houseDeck }
 
   // ---------- ユーティリティ ----------
@@ -29,11 +31,14 @@ const Game = (() => {
 
   function pay(p, a) {
     if (p.money < a) {
-      const borrow = Math.ceil((a - p.money) / 100000) * 100000;
-      p.debt += borrow;
-      p.money += borrow;
-      UI.toast(`🏦 ${p.name} ${fmt(borrow)}を借金…`, "bad");
-      UI.log(`🏦 ${p.name}が${fmt(borrow)}の借金をした（ゴール時に1.5倍返済）`);
+      // 約束手形を発行（1枚¥1,000,000・ゴール時1枚¥1,500,000で返済）
+      const need = Math.ceil((a - p.money) / NOTE_VALUE);
+      p.notes += need;
+      p.money += need * NOTE_VALUE;
+      p.stats = p.stats || {};
+      p.stats.borrowed = (p.stats.borrowed || 0) + need * NOTE_VALUE;
+      UI.toast(`🧾 ${p.name} 約束手形×${need}を発行…`, "bad");
+      UI.log(`🧾 ${p.name}が約束手形を${need}枚発行（ゴール時に1枚${fmt(NOTE_REPAY)}で返済）`);
     }
     p.money -= a;
     Sound.play("pay");
@@ -63,6 +68,7 @@ const Game = (() => {
       stockPrice: STOCK.start,
       deck: shuffle(deck), discard: [],
       houseDeck: shuffle(HOUSES.map((_, i) => i)),
+      burned: [],
     };
     startUI();
     UI.log("🏁 ゲームスタート！波乱万丈の人生へ！");
@@ -190,16 +196,29 @@ const Game = (() => {
     switch (sq.t) {
       case "start": break;
 
-      case "money":
-        await UI.eventModal(sq, p);
-        applyMoney(p, sq.amount);
-        UI.log(`${squareIcon(sq)} ${p.name} ${sq.label} ${fmt(sq.amount)}`);
+      case "money": {
+        let a = sq.amount, note = "";
+        if (a < 0 && sq.scam && hasJob(p, "弁護士")) {
+          a = -Math.round(-a / 2 / 10000) * 10000;
+          note = `⚖️ 弁護士の腕で被害半減！（${fmt(a)}）`;
+        }
+        if (a >= 5000000) { Fx.cutin("💰", "大金GET！！"); await wait(1100); }
+        await UI.eventModal(sq, p, note);
+        applyMoney(p, a);
+        UI.log(`${squareIcon(sq)} ${p.name} ${sq.label} ${fmt(a)}`);
+        if (a < 0 && hasJob(p, "ユーチューバー")) {
+          gain(p, 100000);
+          UI.log(`📹 ${p.name}「動画のネタになった」 +${fmt(100000)}`);
+        }
         break;
+      }
 
-      case "payday":
-        await UI.eventModal(sq, p, "✨ 止まったからダブル給料！！");
-        paySalary(p, 2);
+      case "payday": {
+        const m = hasJob(p, "会社員") ? 3 : 2;
+        await UI.eventModal(sq, p, m === 3 ? "💼 会社員の本領！止まったから給料3倍！！" : "✨ 止まったからダブル給料！！");
+        paySalary(p, m);
         break;
+      }
 
       case "card":
         await UI.eventModal(sq, p);
@@ -210,9 +229,19 @@ const Game = (() => {
         await UI.eventModal(sq, p);
         if (depth >= 5) break;       // 移動マスの連鎖は5回まで
         if (sq.steps > 0) {
-          const r = await moveSteps(p, sq.steps, depth + 1);
+          let steps = sq.steps;
+          if (hasJob(p, "パイロット")) {
+            steps *= 2;
+            await UI.modal({ title: "✈️ パイロットの本領！", body: `ひとっ飛びで歩数2倍！ ${sq.steps}マス → ${steps}マス進む！` });
+          }
+          const r = await moveSteps(p, steps, depth + 1);
           if (r === "goal") return;
         } else {
+          if (hasJob(p, "宇宙飛行士")) {
+            await UI.modal({ title: "🚀 宇宙飛行士の本領！", body: "ジェット噴射で踏みとどまった！戻らずに済んだ！" });
+            UI.log(`🚀 ${p.name}は宇宙飛行士なので戻らない`);
+            break;
+          }
           await moveBack(p, -sq.steps);
           await wait(300);
         }
@@ -255,14 +284,17 @@ const Game = (() => {
       case "housedmg": await houseDamage(p, sq); break;
       case "layoff":   await layoff(p, sq); break;
       case "finalbet": await finalBet(p, sq); break;
+      case "duel":     await duel(p, sq); break;
+      case "choice":   await choiceEvent(p, sq); break;
 
       case "gift": {
         await UI.eventModal(sq, p);
         const os = st.players.filter(o => o.id !== p.id && !o.goaled);
-        os.forEach(o => pay(o, sq.amount));
-        if (os.length) gain(p, sq.amount * os.length);
-        await UI.modal({ title: `🎁 ${sq.label}！`, body: `全員から ${fmt(sq.amount)} ずつ、合計 +${fmt(sq.amount * os.length)} もらった！`, color: p.color });
-        UI.log(`🎁 ${p.name}の${sq.label}！全員から合計 +${fmt(sq.amount * os.length)}`);
+        const per = hasJob(p, "板前") ? sq.amount * 2 : sq.amount;
+        os.forEach(o => pay(o, per));
+        if (os.length) gain(p, per * os.length);
+        await UI.modal({ title: `🎁 ${sq.label}！`, body: `全員から ${fmt(per)} ずつ、合計 +${fmt(per * os.length)} もらった！${hasJob(p, "板前") ? "\n🍣 板前の本領！祝い膳を振る舞って2倍！" : ""}`, color: p.color });
+        UI.log(`🎁 ${p.name}の${sq.label}！全員から合計 +${fmt(per * os.length)}`);
         break;
       }
 
@@ -312,7 +344,7 @@ const Game = (() => {
 
   function canUseCard(p, cid) {
     if (CARD_DEFS[cid].passive) return false;
-    if (cid === "debthalf") return p.debt > 0;
+    if (cid === "debthalf") return p.notes > 0;
     if (cid === "comeback") return st.players.every(o => o.id === p.id || estimateAssets(st, o) >= estimateAssets(st, p));
     if (cid === "sabotage") return st.players.some(o => o.id !== p.id && !o.goaled);
     return true;
@@ -379,9 +411,9 @@ const Game = (() => {
         return;
       }
       case "debthalf": {
-        const before = p.debt;
-        p.debt = Math.floor(p.debt / 2 / 10000) * 10000;
-        await UI.modal({ title: "📃 借金半額の証文", body: `借金 ${fmt(before)} → ${fmt(p.debt)} に！` });
+        const before = p.notes;
+        p.notes = Math.floor(p.notes / 2);
+        await UI.modal({ title: "📃 手形半減の証文", body: `約束手形 ${before}枚 → ${p.notes}枚 に！` });
         UI.renderSidebar(st);
         break;
       }
@@ -423,16 +455,25 @@ const Game = (() => {
         items.push({ label: `📈 1株売る（+${fmt(st.stockPrice)}）`, sell: 1 });
         items.push({ label: `📈 全部売る（${p.stocks}株 → +${fmt(p.stocks * st.stockPrice)}）`, sell: p.stocks });
       }
+      if (p.notes > 0) {
+        items.push({ label: `🧾 手形を1枚早期返済（-${fmt(NOTE_EARLY)}・ゴール返済よりお得）`, disabled: p.money < NOTE_EARLY, repay: true });
+      }
       items.push({ label: "閉じる", close: true });
       const idx = await UI.modal({
         title: `🎒 ${p.name}のカード・資産`,
-        body: `所持金 ${fmt(p.money)}${p.debt ? `　借金 ${fmt(p.debt)}` : ""}　株価 ${fmt(st.stockPrice)}\n` +
+        body: `所持金 ${fmt(p.money)}${p.notes ? `　🧾手形×${p.notes}（ゴール返済 ${fmt(p.notes * NOTE_REPAY)}）` : ""}　株価 ${fmt(st.stockPrice)}\n` +
               (p.cards.length ? "使うカードを選んでね（灰色＝自動発動か条件未達成）" : "お宝カードは持っていない"),
         buttons: items.map(it => ({ label: it.label, disabled: it.disabled })),
         color: p.color,
       });
       const it = items[idx];
       if (it.close) return;
+      if (it.repay) {
+        pay(p, NOTE_EARLY);
+        p.notes--;
+        UI.log(`🧾 ${p.name}が手形を1枚早期返済（-${fmt(NOTE_EARLY)}）`);
+        continue;
+      }
       if (it.sell) {
         p.stocks -= it.sell;
         gain(p, it.sell * st.stockPrice);
@@ -452,18 +493,37 @@ const Game = (() => {
         h("div", { class: "jc-n" }, j.n),
         h("div", { class: "jc-s" }, `給料 ${fmt(j.s)}`),
         h("div", { class: "jc-d" }, j.d),
+        h("div", { class: "jc-k" }, "⭐ " + j.k),
       )));
   }
 
-  // 職業マス：止まったら就職（職持ちなら転職もできる）
+  // その職業が他のプレイヤーに取られていないか（職業は早い者勝ちで1人1職）
+  function jobTakenBy(jobName, except) {
+    return st.players.find(o => o !== except && o.job && o.job.n === jobName) || null;
+  }
+  function freeJobs(pool, p) {
+    const list = pool === "pro" ? JOBS_PRO : pool === "normal" ? JOBS_NORMAL : [...JOBS_NORMAL, ...JOBS_PRO];
+    return list.filter(j => !jobTakenBy(j.n, p) && !(p.job && p.job.n === j.n));
+  }
+  function takeJob(p, j, isChange) {
+    p.job = j;
+    if (isChange) { p.stats = p.stats || {}; p.stats.jobChanges = (p.stats.jobChanges || 0) + 1; }
+    Sound.play("win");
+    UI.log(`💼 ${p.name}は${j.n}に${isChange ? "転職" : "就職"}！（給料 ${fmt(j.s)}／特技：${j.k}）`);
+  }
+
+  // 職業マス：止まったら就職（職持ちなら転職もできる。先客がいたら就けない）
   async function jobLand(p, sq) {
     const j = sq.job;
     await UI.eventModal(sq, p);
+    const holder = jobTakenBy(j.n, p);
+    if (holder) {
+      await UI.modal({ title: `${j.e} 先客がいた！`, body: `${j.n}の枠はすでに ${holder.name} のもの…！同じ職業には就けない。`, color: holder.color });
+      return;
+    }
     if (!p.job) {
-      p.job = j;
-      Sound.play("win");
-      await UI.modal({ title: `${j.e} ${j.n}に就職！`, body: `${j.d}！\n給料は ${fmt(j.s)}（給料日マスでもらえる・止まれば2倍）`, color: p.color });
-      UI.log(`💼 ${p.name}は${j.n}になった（給料 ${fmt(j.s)}）`);
+      takeJob(p, j, false);
+      await UI.modal({ title: `${j.e} ${j.n}に就職！`, body: `${j.d}！\n給料 ${fmt(j.s)}（給料日マスでもらえる・止まれば2倍）\n⭐ 特技：${j.k}`, color: p.color });
       return;
     }
     if (p.job.n === j.n) {
@@ -472,53 +532,51 @@ const Game = (() => {
     }
     const i = await UI.modal({
       title: `${j.e} ${j.n}に転職する？`,
-      body: `いまの仕事：${p.job.e} ${p.job.n}（給料 ${fmt(p.job.s)}）\n転職先：${j.e} ${j.n}（給料 ${fmt(j.s)}）`,
+      body: `いまの仕事：${p.job.e} ${p.job.n}（給料 ${fmt(p.job.s)}／${p.job.k}）\n転職先：${j.e} ${j.n}（給料 ${fmt(j.s)}／${j.k}）`,
       buttons: [`${j.n}に転職する！`, "今のままでいい"],
     });
-    if (i === 0) {
-      p.job = j;
-      Sound.play("win");
-      UI.log(`💼 ${p.name}は${j.n}に転職！（給料 ${fmt(j.s)}）`);
-    }
+    if (i === 0) takeJob(p, j, true);
   }
 
-  // 就職フェア（止まるマス）：無職なら必ず就職、職持ちは転職チャンス
+  // 就職フェア（止まるマス）：無職なら必ず就職、職持ちは転職チャンス（空いている職業のみ）
   async function jobFair(p, pool) {
     await UI.eventModal(SQUARES[p.pos], p);
     if (!p.job) { await jobSquare(p, pool); return; }
-    const offers = pickN(pool === "pro" ? JOBS_PRO : JOBS_NORMAL, 3);
+    const offers = pickN(freeJobs(pool, p), 3);
+    if (!offers.length) {
+      await UI.modal({ title: "💼 就職フェア", body: "求人はすべて出払っていた…今の仕事を頑張ろう！" });
+      return;
+    }
     const buttons = offers.map(j => `${j.e} ${j.n}（給料 ${fmt(j.s)}）`);
     buttons.push(`今のまま（${p.job.n}）`);
     const idx = await UI.modal({ title: "💼 就職フェア（転職してもOK）", body: jobCardsView(offers), buttons });
     if (idx === offers.length) return;
-    p.job = offers[idx];
-    Sound.play("win");
-    UI.log(`💼 ${p.name}は${p.job.n}に転職！（給料 ${fmt(p.job.s)}）`);
+    takeJob(p, offers[idx], true);
   }
 
   async function jobSquare(p, pool) {
-    const list = pool === "pro" ? JOBS_PRO : JOBS_NORMAL;
-    const offers = pickN(list, 3);
+    const offers = pickN(freeJobs(pool, p), 3);
     const idx = await UI.modal({
       title: pool === "pro" ? "💼 就職活動（エリート編）" : "💼 就職！",
       body: [jobCardsView(offers), h("p", { class: "small" }, "給料日マスを通るたびに給料がもらえる！")],
       buttons: offers.map(j => `${j.e} ${j.n}にする`),
     });
-    p.job = offers[idx];
-    Sound.play("win");
-    UI.log(`💼 ${p.name}は${p.job.n}になった（給料 ${fmt(p.job.s)}）`);
+    takeJob(p, offers[idx], false);
+    await UI.modal({ title: `${offers[idx].e} ${offers[idx].n}に就職！`, body: `⭐ 特技：${offers[idx].k}`, color: p.color });
   }
 
   async function jobChange(p) {
     await UI.eventModal(SQUARES[p.pos], p);
-    const offers = pickN([...JOBS_NORMAL, ...JOBS_PRO], 3);
+    const offers = pickN(freeJobs("all", p), 3);
+    if (!offers.length) {
+      await UI.modal({ title: "💼 転職フェア", body: "求人はすべて出払っていた…" });
+      return;
+    }
     const buttons = offers.map(j => `${j.e} ${j.n}（給料 ${fmt(j.s)}）`);
     buttons.push(p.job ? `今のまま（${p.job.n}）` : "やっぱりやめる");
     const idx = await UI.modal({ title: "💼 転職フェア", body: jobCardsView(offers), buttons });
     if (idx === offers.length) return;
-    p.job = offers[idx];
-    Sound.play("win");
-    UI.log(`💼 ${p.name}は${p.job.n}に転職！（給料 ${fmt(p.job.s)}）`);
+    takeJob(p, offers[idx], true);
   }
 
   async function marriage(p) {
@@ -528,21 +586,34 @@ const Game = (() => {
       return;
     }
     p.married = true;
+    Fx.cutin("💍", "結婚おめでとう！！");
+    await wait(1100);
     Sound.play("fanfare");
     const others = st.players.filter(o => o.id !== p.id && !o.goaled);
-    others.forEach(o => pay(o, MARRIAGE_GIFT));
-    const total = MARRIAGE_GIFT * others.length;
+    const per = hasJob(p, "板前") ? MARRIAGE_GIFT * 2 : MARRIAGE_GIFT;
+    others.forEach(o => pay(o, per));
+    const total = per * others.length;
     if (total > 0) gain(p, total);
     await UI.modal({
       title: "💍 結婚！！おめでとう！！",
-      body: `運命の人と結ばれた！\n全員からご祝儀 ${fmt(MARRIAGE_GIFT)} ずつ、合計 ${fmt(total)} もらった！`,
+      body: `運命の人と結ばれた！\n全員からご祝儀 ${fmt(per)} ずつ、合計 ${fmt(total)} もらった！${hasJob(p, "板前") ? "\n🍣 板前の本領！自前の料理でご祝儀2倍！" : ""}`,
       color: p.color,
     });
     UI.log(`💍 ${p.name}が結婚！ご祝儀 +${fmt(total)}`);
+    if (hasJob(p, "美容師")) {
+      gain(p, 500000);
+      await UI.modal({ title: "✂️ 美容師の本領！", body: `式のヘアメイクは全部自分で！浮いた費用 +${fmt(500000)}` });
+    }
+    if (hasJob(p, "パティシエ")) {
+      gain(p, 200000);
+      await UI.modal({ title: "🍰 パティシエの本領！", body: `ウェディングケーキ特需！ +${fmt(200000)}` });
+    }
   }
 
   async function childBirth(p, count) {
     p.children += count;
+    Fx.cutin("👶", count > 1 ? "双子誕生！！" : "赤ちゃん誕生！！");
+    await wait(1100);
     Sound.play("win");
     await UI.modal({
       title: count > 1 ? "👶👶 双子誕生！？" : "👶 赤ちゃん誕生！",
@@ -550,6 +621,10 @@ const Game = (() => {
       color: p.color,
     });
     UI.log(`👶 ${p.name}に子供が${count}人誕生（計${p.children}人）`);
+    if (hasJob(p, "パティシエ")) {
+      gain(p, 200000);
+      await UI.modal({ title: "🍰 パティシエの本領！", body: `お祝いケーキ特需！ +${fmt(200000)}` });
+    }
   }
 
   async function houseSquare(p) {
@@ -559,21 +634,28 @@ const Game = (() => {
       await UI.modal({ title: "🏠 完売御礼", body: "もう売り物件がない…" });
       return;
     }
-    const items = offers.map(hi => ({ label: `${HOUSES[hi].e} ${HOUSES[hi].n}（${fmt(HOUSES[hi].p)}）`, disabled: p.money < HOUSES[hi].p, hi }));
+    const carpenter = hasJob(p, "大工");
+    const priceOf = hi => carpenter ? Math.round(HOUSES[hi].p * 0.8 / 10000) * 10000 : HOUSES[hi].p;
+    const items = offers.map(hi => ({ label: `${HOUSES[hi].e} ${HOUSES[hi].n}（${fmt(priceOf(hi))}）`, disabled: p.money < priceOf(hi), hi }));
     items.push({ label: "買わない", close: true });
     const idx = await UI.modal({
       title: "🏠 どの家を買う？",
-      body: `所持金 ${fmt(p.money)}\n家はゴール時の売却ルーレットで ×0.5〜×3 になる！（1〜3:×0.5／4〜7:×1.5／8〜10:×3）`,
+      body: `所持金 ${fmt(p.money)}\n家はゴール時の売却ルーレットで ×0.5〜×3 になる！（1〜3:×0.5／4〜7:×1.5／8〜10:×3）\n買った家はマップに実物が建って表札が付くぞ！${carpenter ? "\n🔨 大工の本領！2割引で買える！" : ""}`,
       buttons: items.map(it => ({ label: it.label, disabled: it.disabled })),
     });
     const it = items[idx];
     if (it.close) return;
-    pay(p, HOUSES[it.hi].p);
+    pay(p, priceOf(it.hi));
     p.houses.push(it.hi);
     st.houseDeck = st.houseDeck.filter(x => x !== it.hi);
+    p.stats = p.stats || {};
+    p.stats.housesBought = (p.stats.housesBought || 0) + 1;
+    Board.syncHouses(st);
+    Fx.cutin("🏠", "マイホーム購入！！");
+    await wait(1100);
     Sound.play("coin");
-    await UI.modal({ title: "🏠 購入！", body: `${HOUSES[it.hi].e} ${HOUSES[it.hi].n} を手に入れた！` });
-    UI.log(`🏠 ${p.name}が${HOUSES[it.hi].n}を購入（${fmt(HOUSES[it.hi].p)}）`);
+    await UI.modal({ title: "🏠 購入！", body: `${HOUSES[it.hi].e} ${HOUSES[it.hi].n} を手に入れた！\nマップに ${p.name} の表札が立った！` });
+    UI.log(`🏠 ${p.name}が${HOUSES[it.hi].n}を購入（${fmt(priceOf(it.hi))}）`);
   }
 
   async function insuranceSquare(p) {
@@ -616,7 +698,16 @@ const Game = (() => {
       });
       const it = items[idx];
       if (it.close) return;
-      if (it.buy) { pay(p, st.stockPrice * it.buy); p.stocks += it.buy; UI.log(`📈 ${p.name}が株を${it.buy}株購入`); }
+      if (it.buy) {
+        pay(p, st.stockPrice * it.buy);
+        p.stocks += it.buy;
+        UI.log(`📈 ${p.name}が株を${it.buy}株購入`);
+        if (hasJob(p, "ITクリエイター")) {
+          p.stocks += 1;
+          UI.toast("💻 ITクリエイターの本領！1株おまけ", "good");
+          UI.log(`💻 ${p.name}に株1株おまけ`);
+        }
+      }
       if (it.sell) { p.stocks -= it.sell; gain(p, st.stockPrice * it.sell); UI.log(`📈 ${p.name}が株を${it.sell}株売却`); }
     }
   }
@@ -629,17 +720,29 @@ const Game = (() => {
       await UI.modal({ title: "😇 セーフ？", body: "取られるお金がなかった…！" });
       return;
     }
-    const loss = Math.floor(p.money / 2 / 1000) * 1000;
+    const lawyer = sq.scam && hasJob(p, "弁護士");
+    const loss = Math.floor(p.money / (lawyer ? 4 : 2) / 1000) * 1000;
     p.money -= loss;
     Sound.play("bad");
     UI.toast(`💸 ${p.name} -${fmt(loss)}`, "bad");
-    await UI.modal({ title: "🌋 大損害…", body: `所持金が半分に！ -${fmt(loss)}…` });
-    UI.log(`🌋 ${p.name}の所持金が半分に（-${fmt(loss)}）`);
+    await UI.modal({ title: "🌋 大損害…", body: `${lawyer ? "⚖️ 弁護士の腕で被害を4分の1に抑えた！" : "所持金が半分に！"} -${fmt(loss)}…` });
+    UI.log(`🌋 ${p.name}の所持金が${lawyer ? "1/4" : "半分"}に（-${fmt(loss)}）`);
     UI.renderSidebar(st);
+    if (hasJob(p, "お笑い芸人")) {
+      gain(p, 500000);
+      await UI.modal({ title: "🎤 この不幸、ネタになる！", body: `不幸エピソードで営業が殺到！ +${fmt(500000)}` });
+      UI.log(`🎤 ${p.name}は不幸をネタに +${fmt(500000)}`);
+    }
   }
 
   async function accident(p, sq) {
     await UI.eventModal(sq, p);
+    if (hasJob(p, "医者")) {
+      Sound.play("win");
+      await UI.modal({ title: "🩺 医者の本領発揮！", body: "自分でサクッと治療して支払いゼロ！むしろ健康になった！" });
+      UI.log(`🩺 ${p.name}は医者なのでセーフ`);
+      return;
+    }
     if (consumeOmamori(p)) { await omamoriModal(); return; }
     if (p.insurance.life) {
       Sound.play("win");
@@ -653,6 +756,12 @@ const Game = (() => {
 
   async function fireEvent(p, sq) {
     await UI.eventModal(sq, p);
+    if (hasJob(p, "消防士")) {
+      Sound.play("win");
+      await UI.modal({ title: "🚒 消防士の本領発揮！", body: "自ら消火活動！家は無傷だ！" });
+      UI.log(`🚒 ${p.name}は消防士なのでセーフ`);
+      return;
+    }
     if (consumeOmamori(p)) { await omamoriModal(); return; }
     if (p.insurance.fire) {
       Sound.play("win");
@@ -665,16 +774,26 @@ const Game = (() => {
       return;
     }
     const i = Math.floor(Math.random() * p.houses.length);
-    const hs = HOUSES[p.houses[i]];
+    const hi = p.houses[i];
+    const hs = HOUSES[hi];
     p.houses.splice(i, 1);
+    st.burned = st.burned || [];
+    st.burned.push(hi);
+    Board.syncHouses(st);
     Sound.play("bad");
-    await UI.modal({ title: "🔥 全焼…", body: `${hs.e} ${hs.n} が燃えてしまった…（${fmt(hs.p)}の損失）` });
+    await UI.modal({ title: "🔥 全焼…", body: `${hs.e} ${hs.n} が燃えてしまった…（${fmt(hs.p)}の損失）\nマップの家も黒こげに…` });
     UI.log(`🔥 ${p.name}の${hs.n}が全焼…`);
   }
 
   // 住宅被害：火災保険でセーフ／家なしなら雑費のみ／家ありは修理費
   async function houseDamage(p, sq) {
     await UI.eventModal(sq, p);
+    if (hasJob(p, "農家")) {
+      Sound.play("win");
+      await UI.modal({ title: "🌾 農家は嵐に強い！", body: "嵐には慣れっこ。自力でサッと直してしまった！" });
+      UI.log(`🌾 ${p.name}は農家なのでセーフ`);
+      return;
+    }
     if (consumeOmamori(p)) { await omamoriModal(); return; }
     if (p.insurance.fire) {
       Sound.play("win");
@@ -692,6 +811,61 @@ const Game = (() => {
     UI.log(`🌪️ ${p.name} ${sq.label} -${fmt(sq.amount)}`);
   }
 
+  // 決闘マス：好きな相手とルーレット勝負（大きい目が勝ち）
+  async function duel(p, sq) {
+    await UI.eventModal(sq, p);
+    const ts = st.players.filter(o => o.id !== p.id && !o.goaled);
+    if (!ts.length) {
+      await UI.modal({ title: "⚔️ 決闘…？", body: "勝負できる相手がもう誰もいなかった…" });
+      return;
+    }
+    const ti = ts.length === 1 ? 0 : await UI.modal({
+      title: "⚔️ 決闘！", body: `誰と勝負する？（賭け金 ${fmt(sq.stake)}）`,
+      buttons: ts.map(t => t.name), color: p.color,
+    });
+    const t = ts[ti];
+    await UI.modal({ title: "⚔️ ルーレット勝負！", body: `${p.name} VS ${t.name}！\nまずは ${p.name} がルーレットを回す！`, color: p.color });
+    const a = await Roulette.spin();
+    await UI.modal({ title: `${p.name}の出目は「${a}」！`, body: `続いて ${t.name} の番！`, color: t.color });
+    const b = await Roulette.spin();
+    if (a === b) {
+      await UI.modal({ title: `引き分け！（${a} vs ${b}）`, body: "勝負あずかり！互いの健闘を称え合った" });
+      UI.log(`⚔️ ${p.name} vs ${t.name} は引き分け`);
+      return;
+    }
+    const win = a > b ? p : t, lose = a > b ? t : p;
+    pay(lose, sq.stake);
+    gain(win, sq.stake);
+    win.stats.duelWins = (win.stats.duelWins || 0) + 1;
+    win.stats.gamble = (win.stats.gamble || 0) + sq.stake;
+    lose.stats.gamble = (lose.stats.gamble || 0) - sq.stake;
+    Sound.play(win === p ? "fanfare" : "bad");
+    await UI.modal({ title: `${win.name}の勝ち！！（${a} vs ${b}）`, body: `${lose.name}は賭け金 ${fmt(sq.stake)} を支払った…`, color: win.color });
+    UI.log(`⚔️ ${p.name} vs ${t.name} → ${win.name}の勝利！（${fmt(sq.stake)}）`);
+  }
+
+  // 選択式イベント：選んだ道で結果が変わる
+  async function choiceEvent(p, sq) {
+    await UI.eventModal(sq, p);
+    const oi = await UI.modal({ title: `❓ ${sq.label}`, body: "どうする？", buttons: sq.opts.map(o => o.b), color: p.color });
+    const outs = sq.opts[oi].out;
+    const total = outs.reduce((s, o) => s + o.w, 0);
+    let r = Math.random() * total, out = outs[outs.length - 1];
+    for (const o of outs) { r -= o.w; if (r <= 0) { out = o; break; } }
+    let m = out.m, note = "";
+    if (m < 0 && out.scam && hasJob(p, "弁護士")) {
+      m = -Math.round(-m / 2 / 10000) * 10000;
+      note = "\n⚖️ 弁護士の腕で被害半減！";
+    }
+    Sound.play(m > 0 ? "win" : m < 0 ? "bad" : "click");
+    await UI.modal({
+      title: m > 0 ? "🎉 結果は…！" : m < 0 ? "😱 結果は…" : "😌 結果は…",
+      body: out.t + (m !== 0 ? `\n${m > 0 ? "+" : ""}${fmt(m)}` : "") + note,
+    });
+    if (m !== 0) applyMoney(p, m);
+    UI.log(`❓ ${p.name} ${sq.label}：${out.t}${m ? `（${fmt(m)}）` : ""}`);
+  }
+
   // 人生最後の大勝負：ルーレット6以上で勝ち
   async function finalBet(p, sq) {
     await UI.eventModal(sq, p);
@@ -702,6 +876,8 @@ const Game = (() => {
     });
     if (i === 1) { UI.log(`🎲 ${p.name}は大勝負を見送った`); return; }
     const k = await Roulette.spin();
+    p.stats = p.stats || {};
+    p.stats.gamble = (p.stats.gamble || 0) + (k >= 6 ? sq.stake : -sq.stake);
     if (k >= 6) {
       Sound.play("fanfare");
       gain(p, sq.stake);
@@ -721,6 +897,12 @@ const Game = (() => {
       await UI.modal({ title: "📦 会社倒産", body: "もともと無職だった…痛くも痒くもない！" });
       return;
     }
+    if (hasJob(p, "公務員")) {
+      Sound.play("win");
+      await UI.modal({ title: "🏛️ 公務員は倒産しない！", body: "役所は潰れない。今日も定時で帰ります。" });
+      UI.log(`🏛️ ${p.name}は公務員なのでセーフ`);
+      return;
+    }
     UI.log(`📦 ${p.name}は${p.job.n}を失った…`);
     p.job = null;
     await UI.modal({ title: "📦 無職に…", body: `職を失った…給料日はバイト代 ${fmt(SALARY_JOBLESS)} のみ。\n転職フェアで再就職しよう！` });
@@ -730,6 +912,8 @@ const Game = (() => {
   async function arriveGoal(p) {
     p.goaled = true;
     p.goalOrder = ++st.goalCount;
+    Fx.cutin("👑", `${p.name} ゴール！！`);
+    await wait(1100);
     Sound.play("fanfare");
 
     const lines = [["💰 手持ちの現金", p.money]];
@@ -737,8 +921,9 @@ const Game = (() => {
     const bonus = GOAL_BONUS[p.goalOrder - 1] || 100000;
     lines.push([`🏁 ゴールボーナス（${p.goalOrder}位）`, bonus]); total += bonus;
     if (p.children > 0) {
-      const cb = p.children * CHILD_BONUS;
-      lines.push([`👶 子供ボーナス（${p.children}人）`, cb]); total += cb;
+      const prof = hasJob(p, "大学教授");
+      const cb = p.children * CHILD_BONUS * (prof ? 2 : 1);
+      lines.push([`👶 子供ボーナス（${p.children}人${prof ? "・🎓教授の教育力で2倍" : ""}）`, cb]); total += cb;
     }
     p.houses.forEach(hi => {
       const hs = HOUSES[hi];
@@ -754,12 +939,15 @@ const Game = (() => {
     p.cards.filter(c => c === "appraise").forEach(() => {
       lines.push(["🏺 鑑定団の招待状", 1000000]); total += 1000000;
     });
-    if (p.debt > 0) {
-      const d = -Math.floor(p.debt * 1.5);
-      lines.push([`🏦 借金返済（${fmt(p.debt)}×1.5）`, d]); total += d;
+    if (p.notes > 0) {
+      const d = -p.notes * NOTE_REPAY;
+      lines.push([`🧾 約束手形の返済（${p.notes}枚 × ${fmt(NOTE_REPAY)}）`, d]); total += d;
     }
     p.money = total;
-    p.debt = 0; p.stocks = 0; p.houses = []; p.cards = [];
+    p.notes = 0; p.stocks = 0; p.cards = [];
+    p.houses.forEach(hi => st.houseDeck.push(hi));   // 売却した家はまた売りに出る
+    p.houses = [];
+    Board.syncHouses(st);
     p.settle = lines;
 
     Fx.confetti(70);
@@ -770,6 +958,21 @@ const Game = (() => {
     await UI.modal({ title: `👑 ${p.name}、${p.goalOrder}位でゴール！！`, body: tbl, color: p.color });
     UI.log(`👑 ${p.name}がゴール！（${p.goalOrder}位・総資産 ${fmt(total)}）`);
     UI.renderSidebar(st);
+  }
+
+  // プレイぶりに応じた称号
+  function titleOf(p, rank, n) {
+    const s = p.stats || {};
+    if ((s.duelWins || 0) >= 2) return "⚔️ 無敗の決闘王";
+    if ((s.gamble || 0) >= 3000000) return "🎰 ギャンブルの帝王";
+    if ((s.gamble || 0) <= -3000000) return "🫠 カジノの養分";
+    if ((s.borrowed || 0) >= 3000000) return "🧾 手形王";
+    if (p.children >= 4) return "👶 子だくさん大家族";
+    if ((s.housesBought || 0) >= 3) return "🏠 不動産王";
+    if ((s.jobChanges || 0) >= 3) return "💼 自分探しの達人";
+    if (rank === 0) return "👑 人生の大勝者";
+    if (rank === n - 1 && n > 1) return "🌅 どん底を生き抜いた人";
+    return p.married ? "🏡 堅実な人生の達人" : "🎒 自由気ままな旅人";
   }
 
   // 結果発表：ドラムロールで下位から順に発表（クリックでスキップ）
@@ -783,7 +986,10 @@ const Game = (() => {
     const rows = ranked.map((p, i) => {
       const row = h("div", { class: "result-row" + (i === 0 ? " result-win" : ""), style: `border-color:${p.color}` },
         h("div", { class: "result-rank" }, medal[i]),
-        h("div", { class: "result-name", style: `color:${p.color}` }, p.name),
+        h("div", { class: "result-name", style: `color:${p.color}` },
+          p.name,
+          h("span", { class: "result-title" }, titleOf(p, i, ranked.length)),
+        ),
         h("div", { class: "result-money" }, fmt(p.money)),
         h("div", { class: "result-detail" }, (p.settle || []).map(([t, v]) => `${t} ${fmt(v)}`).join("　／　")),
       );
@@ -819,6 +1025,11 @@ const Game = (() => {
   function load() {
     try { st = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { st = null; }
     if (!st) return;
+    st.burned = st.burned || [];
+    st.players.forEach(p => {
+      p.notes = p.notes || 0;
+      p.stats = p.stats || { gamble: 0, borrowed: 0, housesBought: 0, jobChanges: 0, duelWins: 0 };
+    });
     startUI();
     UI.log("📂 セーブデータから再開");
     loop();

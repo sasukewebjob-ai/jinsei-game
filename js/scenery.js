@@ -280,6 +280,129 @@ const Scenery = (() => {
     return txt(t, Object.assign({ x, y, "font-size": size }, cls ? { class: cls } : {}));
   }
 
+  // ---------- 章タイトル看板 ----------
+  function signboard(x, y, s, small, big) {
+    const g = grp(x, y, s);
+    g.append(
+      rect(-44, -56, 6, 56, 2, "#8a5a33"), rect(38, -56, 6, 56, 2, "#8a5a33"),
+      rect(-58, -88, 116, 40, 8, "#b8895a", { stroke: "#7a4a23", "stroke-width": 3 }),
+      txt(small, { y: -74, "font-size": 11, "font-weight": 900, fill: "#fff3df" }),
+      txt(big, { y: -57, "font-size": 14, "font-weight": 900, fill: "#fff" }),
+    );
+    return g;
+  }
+
+  // ---------- 動く住人 ----------
+  function walker(x, y, t, size, dur) {
+    const g = grp(x, y, 1);
+    const e = txt(t, { "font-size": size, class: "sc-walker" });
+    e.style.animationDuration = dur + "s";
+    g.append(e);
+    return g;
+  }
+
+  function birds(x, y, s, color, dur) {
+    const g = grp(x, y, s, "sc-fly");
+    g.style.animationDuration = dur + "s";
+    [[0, 0], [26, -10], [52, 4]].forEach(([bx, by]) =>
+      g.append(path(`M${bx - 9},${by} Q${bx - 4},${by - 7} ${bx},${by} Q${bx + 4},${by - 7} ${bx + 9},${by}`,
+        "none", { stroke: color, "stroke-width": 2.5, "stroke-linecap": "round", fill: "none" })));
+    return g;
+  }
+
+  // ---------- 物件スプライト（マップに実在する家。原点＝地面） ----------
+  function palm(px, py, s = 1) {
+    const g = grp(px, py, s);
+    g.append(
+      path("M0,0 Q4,-14 2,-26", "none", { stroke: "#8a5a33", "stroke-width": 5, "stroke-linecap": "round" }),
+      path("M2,-26 Q-12,-34 -20,-28", "none", { stroke: "#3fa34d", "stroke-width": 4, "stroke-linecap": "round" }),
+      path("M2,-26 Q16,-34 24,-28", "none", { stroke: "#3fa34d", "stroke-width": 4, "stroke-linecap": "round" }),
+      path("M2,-26 Q0,-40 -6,-44", "none", { stroke: "#57bb63", "stroke-width": 4, "stroke-linecap": "round" }),
+      path("M2,-26 Q8,-40 14,-42", "none", { stroke: "#57bb63", "stroke-width": 4, "stroke-linecap": "round" }),
+    );
+    return g;
+  }
+
+  const HOUSE_SPRITES = [
+    // 0 山小屋
+    () => { const g = grp(0, 0, 1); g.append(path("M-22,0 L0,-34 L22,0 Z", "#8a5a33"), path("M-14,0 L0,-22 L14,0 Z", "#b8895a"), rect(-4, -11, 8, 11, 1, "#5a3a1a")); return g; },
+    // 1 古民家
+    () => { const g = grp(0, 0, 1); g.append(rect(-26, -20, 52, 20, 2, "#d9c7a8", { stroke: "#9a8a6a", "stroke-width": 2 }), path("M-34,-20 L0,-40 L34,-20 Z", "#5a4a3a"), rect(-6, -14, 12, 14, 1, "#7a5a3a"), rect(12, -16, 9, 8, 1, "#e8dcc0")); return g; },
+    // 2 トレーラーハウス
+    () => { const g = grp(0, 0, 1); g.append(rect(-28, -26, 52, 20, 7, "#e8e0d0", { stroke: "#b8a888", "stroke-width": 2 }), rect(-28, -16, 52, 4, 0, "#e0635f"), rect(-18, -23, 12, 8, 2, "#aadcf5"), rect(4, -23, 12, 8, 2, "#aadcf5"), circ(-14, -4, 5, "#2b2b33"), circ(12, -4, 5, "#2b2b33")); return g; },
+    // 3 アパート一室
+    () => { const g = grp(0, 0, 1); g.append(rect(-20, -42, 40, 42, 3, "#d8d8e8", { stroke: "#a8a8c0", "stroke-width": 2 }), rect(-14, -36, 10, 9, 1, "#ffe9a8"), rect(5, -36, 10, 9, 1, "#aab8d0"), rect(-14, -20, 10, 9, 1, "#aab8d0"), rect(5, -20, 10, 9, 1, "#ffe9a8"), rect(-5, -10, 10, 10, 1, "#7a6a5a")); return g; },
+    // 4 ツリーハウス
+    () => { const g = grp(0, 0, 1); g.append(rect(-4, -26, 8, 26, 2, "#8a5a33"), circ(0, -46, 18, "#3fa34d"), circ(-14, -36, 12, "#57bb63"), circ(14, -36, 12, "#57bb63"), rect(-12, -34, 24, 14, 3, "#c9a06a", { stroke: "#8a5a33", "stroke-width": 2 }), rect(-4, -31, 8, 7, 1, "#5a3a1a")); return g; },
+    // 5 ログハウス
+    () => { const g = grp(0, 0, 1); g.append(rect(-24, -22, 48, 22, 4, "#b8895a", { stroke: "#8a5a33", "stroke-width": 2 }), el("line", { x1: -24, y1: -15, x2: 24, y2: -15, stroke: "#8a5a33", "stroke-width": 1.6 }), el("line", { x1: -24, y1: -8, x2: 24, y2: -8, stroke: "#8a5a33", "stroke-width": 1.6 }), path("M-30,-22 L0,-40 L30,-22 Z", "#6a4a2a"), rect(-5, -13, 10, 13, 1, "#5a3a1a")); return g; },
+    // 6 郊外の一軒家
+    () => { const g = grp(0, 0, 1); g.append(rect(-24, -26, 48, 26, 3, "#fff3df", { stroke: "rgba(0,0,0,.14)", "stroke-width": 2 }), path("M-30,-26 L0,-46 L30,-26 Z", "#e0635f"), rect(-7, -16, 14, 16, 2, "#9a6a44"), rect(10, -21, 10, 9, 2, "#aadcf5")); return g; },
+    // 7 デザイナーズマンション
+    () => { const g = grp(0, 0, 1); g.append(rect(-18, -62, 36, 62, 3, "#cfd8e8", { stroke: "#9aa8c0", "stroke-width": 2 })); for (let r = 0; r < 4; r++) g.append(rect(-12, -56 + r * 14, 24, 8, 1, r % 2 ? "#ffe9a8" : "#aab8d0")); return g; },
+    // 8 海辺の別荘
+    () => { const g = grp(0, 0, 1); g.append(ell(0, 2, 44, 11, "#7ec8f5", { opacity: .8 }), ell(2, 0, 34, 8, "#f4e2b8"), rect(-16, -24, 30, 24, 3, "#ffffff", { stroke: "#c0d0e0", "stroke-width": 2 }), path("M-20,-24 L-1,-36 L18,-24 Z", "#5aa9dd"), rect(-8, -16, 8, 16, 1, "#9a8a6a"), palm(24, 0, .9)); return g; },
+    // 9 タワマン最上階
+    () => { const g = grp(0, 0, 1); g.append(rect(-16, -84, 32, 84, 3, "#9fb0c9", { stroke: "#7a8aa8", "stroke-width": 2 })); for (let r = 0; r < 6; r++) g.append(rect(-11, -78 + r * 13, 22, 7, 1, r === 0 ? "#ffe14d" : "#d8e4f0")); g.append(el("line", { x1: 0, y1: -84, x2: 0, y2: -98, stroke: "#7a8aa8", "stroke-width": 2.5 }), circ(0, -99, 2.5, "#e0635f")); return g; },
+    // 10 温泉付き豪邸
+    () => { const g = grp(0, 0, 1); g.append(rect(-32, -26, 64, 26, 3, "#f6e9d0", { stroke: "#c9b89a", "stroke-width": 2 }), path("M-38,-26 Q0,-46 38,-26 Z", "#8a4a3a"), rect(-22, -18, 12, 10, 1, "#ffe9a8"), rect(10, -18, 12, 10, 1, "#aadcf5"), rect(-5, -14, 10, 14, 1, "#7a5a3a"), txt("♨️", { x: 30, y: -34, "font-size": 16 })); return g; },
+    // 11 無人島のヴィラ
+    () => { const g = grp(0, 0, 1); g.append(ell(0, 2, 48, 13, "#7ec8f5", { opacity: .85 }), ell(0, 0, 32, 9, "#f4e2b8"), path("M-16,-2 L-4,-20 L8,-2 Z", "#c9a06a"), rect(-7, -8, 7, 8, 1, "#8a5a33"), palm(18, -2, .85)); return g; },
+    // 12 お城
+    () => { const g = grp(0, 0, 1); g.append(ell(0, 2, 52, 13, "#8fd17e"), rect(-34, -34, 16, 34, 2, "#e8e0d8", { stroke: "#b0a898", "stroke-width": 2 }), path("M-36,-34 L-26,-50 L-16,-34 Z", "#5a6a9a"), rect(18, -34, 16, 34, 2, "#e8e0d8", { stroke: "#b0a898", "stroke-width": 2 }), path("M16,-34 L26,-50 L36,-34 Z", "#5a6a9a"), rect(-14, -44, 28, 44, 2, "#f0e8e0", { stroke: "#b0a898", "stroke-width": 2 }), path("M-16,-44 L0,-62 L16,-44 Z", "#5a6a9a"), el("line", { x1: 0, y1: -62, x2: 0, y2: -74, stroke: "#8a7a6a", "stroke-width": 2 }), path("M0,-74 L12,-70 L0,-66 Z", "#e0432e"), rect(-6, -14, 12, 14, 6, "#6a5a4a")); return g; },
+    // 13 月の土地付きドーム
+    () => { const g = grp(0, 0, 1); g.append(ell(0, 0, 42, 11, "#cfcfe0", { stroke: "#a8a8c0", "stroke-width": 2 }), circ(-22, -2, 4, "#b0b0c8"), circ(16, 1, 3, "#b0b0c8"), path("M-24,0 A24,24 0 0 1 24,0 Z", "rgba(170,220,245,.55)", { stroke: "#8ac0e0", "stroke-width": 2.5 }), rect(-6, -10, 12, 10, 2, "#e8e8f0"), el("line", { x1: 30, y1: 0, x2: 30, y2: -22, stroke: "#a8a8c0", "stroke-width": 2 }), path("M30,-22 L42,-18 L30,-14 Z", "#5aa9dd")); return g; },
+  ];
+
+  // 物件の設置場所（似合うエリアに点在）
+  const HOUSE_SPOTS = [
+    { hi: 0,  x: 2520, y: 1438, s: 1 },    // 山小屋→山のふもと
+    { hi: 1,  x: 440,  y: 1604, s: 1 },    // 古民家→夕焼けの里
+    { hi: 2,  x: 245,  y: 240,  s: 1 },    // トレーラー→公園わき
+    { hi: 3,  x: 980,  y: 690,  s: 1 },    // アパート→青春の街
+    { hi: 4,  x: 1230, y: 300,  s: 1 },    // ツリーハウス→遊園地の森
+    { hi: 5,  x: 380,  y: 836,  s: 1 },    // ログハウス→郊外
+    { hi: 6,  x: 1320, y: 834,  s: 1 },    // 一軒家→郊外
+    { hi: 7,  x: 1800, y: 690,  s: 1 },    // マンション→青春の街
+    { hi: 8,  x: 2520, y: 760,  s: .95 },  // 海辺の別荘→東の浜辺
+    { hi: 9,  x: 560,  y: 966,  s: 1 },    // タワマン→夜の街
+    { hi: 10, x: 1730, y: 1600, s: 1 },    // 温泉付き豪邸→温泉郷
+    { hi: 11, x: 2520, y: 1620, s: 1 },    // 無人島ヴィラ→南東の海
+    { hi: 12, x: 120,  y: 1268, s: .95 },  // お城→丘の上
+    { hi: 13, x: 1800, y: 120,  s: 1 },    // 月ドーム→空の彼方
+  ];
+
+  function saleFlag() {
+    const g = el("g", { class: "hs-flag" });
+    g.append(
+      el("line", { x1: 34, y1: 0, x2: 34, y2: -36, stroke: "#8a5a33", "stroke-width": 3 }),
+      rect(34, -36, 24, 17, 3, "#fff", { stroke: "#e8590c", "stroke-width": 2 }),
+      txt("売", { x: 46, y: -23, "font-size": 12, "font-weight": 900, fill: "#e8590c" }),
+    );
+    return g;
+  }
+
+  // 物件レイヤーを構築し、状態更新用の要素辞書を返す
+  function houses(parent) {
+    const out = {};
+    HOUSE_SPOTS.forEach(({ hi, x, y, s }) => {
+      const g = grp(x, y, s, "hs hs-sale");
+      g.appendChild(HOUSE_SPRITES[hi]());
+      g.appendChild(saleFlag());
+      const plateG = el("g", { class: "hs-plate", display: "none" });
+      const plateBg = rect(-36, 8, 72, 19, 7, "#888", { stroke: "#fff", "stroke-width": 2 });
+      const plateTx = txt("", { y: 22, "font-size": 11, "font-weight": 900, fill: "#fff" });
+      plateG.append(plateBg, plateTx);
+      g.appendChild(plateG);
+      const tt = el("title", {});
+      tt.textContent = `${HOUSES[hi].e} ${HOUSES[hi].n}（¥${HOUSES[hi].p.toLocaleString()}）`;
+      g.appendChild(tt);
+      parent.appendChild(g);
+      out[hi] = { g, plateG, plateBg, plateTx };
+    });
+    return out;
+  }
+
   // ---------- 描画（10行レイアウト：行y=150,300,…,1500） ----------
   function render(parent) {
     // エリア背景帯
@@ -334,10 +457,9 @@ const Scenery = (() => {
     // --- 安定：郊外 ---
     d.append(
       pond(190, 690, .85, true),
-      house(520, 838, .9, "#fff3df", "#e0635f"), house(930, 834, .85, "#eef7e0", "#5aa9dd"),
-      house(1620, 836, .9, "#fdeede", "#6cc24a"), house(2120, 832, .85, "#fff3df", "#f4b630"),
+      house(930, 834, .85, "#eef7e0", "#5aa9dd"), house(2120, 832, .85, "#fff3df", "#f4b630"),
       tree(720, 680, .7), tree(1900, 683, .75),
-      emoji(1230, 830, "🐕", 22), emoji(2350, 828, "🌻", 20),
+      emoji(2350, 828, "🌻", 20),
     );
     // --- ギャンブル：夜の街 ---
     d.append(
@@ -375,10 +497,29 @@ const Scenery = (() => {
       torii(950, 1597, 1),
       onsen(1540, 1595, 1),
       tree(640, 1600, .9), sakura(2050, 1597, .9),
-      emoji(1200, 1604, "🌾", 22), emoji(1820, 1606, "🍵", 20),
+      emoji(1200, 1604, "🌾", 22), emoji(1880, 1606, "🍵", 20),
+    );
+    // --- 章タイトル看板 ---
+    d.append(
+      signboard(330, 100, 1, "第1章", "はじまりの公園"),
+      signboard(1290, 258, .9, "第2章", "進路の選択"),
+      signboard(430, 538, .9, "第3章", "青春の街"),
+      signboard(2330, 695, .9, "第4章", "人生の岐路"),
+      signboard(240, 1132, .9, "第5章", "波乱の40代"),
+      signboard(2350, 1138, .9, "第6章", "熟年の階段"),
+      signboard(330, 1292, .95, "第7章", "黄金ロード"),
+      signboard(1900, 1438, .95, "終章", "フィナーレ"),
+    );
+    // --- 動く住人 ---
+    d.append(
+      walker(1180, 830, "🐕", 22, 13),
+      walker(1400, 1282, "🐈", 20, 17),
+      walker(1860, 966, "🕴️", 26, 21),
+      birds(300, 80, 1, "#5a7a9a", 34),
+      birds(500, 1448, .8, "#8a5a4a", 44),
     );
     parent.append(d);
   }
 
-  return { render };
+  return { render, houses };
 })();
