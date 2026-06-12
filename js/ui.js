@@ -96,7 +96,7 @@ const UI = (() => {
       clear(info);
       info.append(
         h("div", {}, `💰 所持金 ${fmt(p.money)}${p.notes ? `　🧾 手形×${p.notes}` : ""}`),
-        h("div", {}, `${p.job ? p.job.e + " " + p.job.n : "👤 無職"}${p.married ? "　💍" : ""}${p.children ? "　👶×" + p.children : ""}${p.cards.length ? "　🃏×" + p.cards.length : ""}`),
+        h("div", {}, `${p.job ? p.job.e + " " + p.job.n + "★".repeat(Math.max(0, (p.jobLevel || 1) - 1)) : "👤 無職"}${p.married ? "　💍" : ""}${p.children ? "　👶×" + p.children : ""}${p.cards.length ? "　🃏×" + p.cards.length : ""}`),
       );
       $("#btn-handoff-go").onclick = () => { Sound.play("click"); ov.hidden = true; res(); };
       ov.hidden = false;
@@ -171,7 +171,7 @@ const UI = (() => {
           ),
         ),
         p.notes ? h("div", { class: "pp-debt" }, `🧾 約束手形×${p.notes}（ゴール返済 ${fmt(p.notes * NOTE_REPAY)}）`) : null,
-        h("div", { class: "pp-line" }, `${p.job ? p.job.e + p.job.n : "無職"}　${icons1}`),
+        h("div", { class: "pp-line" }, `${p.job ? p.job.e + p.job.n + "★".repeat(Math.max(0, (p.jobLevel || 1) - 1)) : "無職"}　${icons1}`),
         icons2.trim() ? h("div", { class: "pp-line" }, icons2) : null,
       ));
     });

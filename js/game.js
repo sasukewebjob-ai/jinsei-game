@@ -1,9 +1,17 @@
 // ゲーム本体：ターン進行のステートマシン・マス効果の解決・精算・セーブ
 
 const Game = (() => {
-  const SAVE_KEY = "jinsei-game-save-v4";
+  const SAVE_KEY = "jinsei-game-save-v5";
 
   const hasJob = (p, name) => p.job && p.job.n === name;
+
+  // ★ランクを反映した実効給料（★なし×1／★×1.3／★★×1.6）
+  const PROMO_MULT = [1, 1, 1.3, 1.6];
+  function effSalary(p) {
+    if (!p.job) return SALARY_JOBLESS;
+    return Math.round(p.job.s * PROMO_MULT[Math.min(p.jobLevel || 1, 3)] / 10000) * 10000;
+  }
+  const starsOf = p => "★".repeat(Math.max(0, (p.jobLevel || 1) - 1));
   let st = null;   // { players, cur, round, goalCount, stockPrice, deck, discard, houseDeck }
 
   // ---------- ユーティリティ ----------
@@ -53,7 +61,7 @@ const Game = (() => {
   }
 
   function paySalary(p, mult = 1) {
-    let a = (p.job ? p.job.s : SALARY_JOBLESS) * mult;
+    let a = effSalary(p) * mult;
     const maneki = p.cards.filter(c => c === "maneki").length;
     a += maneki * 100000;
     gain(p, a);
@@ -312,6 +320,7 @@ const Game = (() => {
       case "jobsq":     await jobLand(p, sq); break;
       case "jobfair":   await jobFair(p, sq.pool); break;
       case "jobchange": await jobChange(p); break;
+      case "promo":     await promoSquare(p, sq); break;
       case "preclose":  await preClose(p); break;
       case "marriage":  await marriage(p); break;
       case "child":     await childBirth(p, sq.count); break;
@@ -433,7 +442,7 @@ const Game = (() => {
         await UI.modal({ title: "🪙 七福神の小判", body: `御利益キター！ +${fmt(700000)}` });
         break;
       case "advance": {
-        const a = p.job ? p.job.s : 200000;
+        const a = p.job ? effSalary(p) : 200000;
         gain(p, a);
         await UI.modal({ title: "💴 給料前借り", body: `+${fmt(a)} 前借りした！来月の自分よ、すまん！` });
         break;
@@ -537,7 +546,7 @@ const Game = (() => {
   }
   function handView(p) {
     const cards = [];
-    if (p.job) cards.push(paperCard("job", Icons.jobKey(p.job.n), p.job.n, `給料 ${fmt(p.job.s)}`));
+    if (p.job) cards.push(paperCard("job", Icons.jobKey(p.job.n), p.job.n + starsOf(p), `給料 ${fmt(effSalary(p))}`));
     if (p.insurance.life) cards.push(paperCard("ins", "shieldheart", "生命保険証券", "事故・入院を無効化"));
     if (p.insurance.fire) cards.push(paperCard("ins", "shieldflame", "火災保険証券", "火事から家を守る"));
     if (p.stocks > 0) cards.push(paperCard("stock", "scrollstock", `株券 ×${p.stocks}`, `時価 ${fmt(p.stocks * st.stockPrice)}`));
@@ -614,10 +623,40 @@ const Game = (() => {
     return list.filter(j => !jobTakenBy(j.n, p) && !(p.job && p.job.n === j.n));
   }
   function takeJob(p, j, isChange) {
+    const hadStars = (p.jobLevel || 1) > 1;
     p.job = j;
+    p.jobLevel = 1;   // 転職・就職で★はリセット
     if (isChange) { p.stats = p.stats || {}; p.stats.jobChanges = (p.stats.jobChanges || 0) + 1; }
     Sound.play("win");
-    UI.log(`💼 ${p.name}は${j.n}に${isChange ? "転職" : "就職"}！（給料 ${fmt(j.s)}／特技：${j.k}）`);
+    UI.log(`💼 ${p.name}は${j.n}に${isChange ? "転職" : "就職"}！（給料 ${fmt(j.s)}／特技：${j.k}）${hadStars ? "（★はリセット…）" : ""}`);
+  }
+
+  // 昇進マス：職業に★が付いて給料ランクUP（★★まで）
+  async function promoSquare(p, sq) {
+    await UI.eventModal(sq, p);
+    if (!p.job) {
+      gain(p, 100000);
+      await UI.modal({ title: "⭐ 昇進…？", body: `無職に昇進はなかった…が、バイトリーダーに任命された！ +${fmt(100000)}` });
+      UI.log(`⭐ ${p.name}はバイトリーダーに（+${fmt(100000)}）`);
+      return;
+    }
+    if ((p.jobLevel || 1) >= 3) {
+      gain(p, 500000);
+      await UI.modal({ title: "🏆 もう頂点！", body: `${p.job.n}${starsOf(p)}はすでに頂点！特別表彰金 +${fmt(500000)}！` });
+      UI.log(`🏆 ${p.name}は${p.job.n}の頂点として表彰 +${fmt(500000)}`);
+      return;
+    }
+    p.jobLevel = (p.jobLevel || 1) + 1;
+    Sound.play("fanfare");
+    Fx.cutin("⭐", "昇進おめでとう！！");
+    await wait(1100);
+    await UI.modal({
+      title: `⭐ 昇進！ ${p.job.e} ${p.job.n}${starsOf(p)}`,
+      body: `給料ランクUP！ ${fmt(p.job.s)} → ${fmt(effSalary(p))}（×${PROMO_MULT[p.jobLevel]}）\n※転職すると★はリセットされるので注意！`,
+      color: p.color,
+    });
+    UI.log(`⭐ ${p.name}が昇進！${p.job.n}${starsOf(p)}（給料 ${fmt(effSalary(p))}）`);
+    UI.renderSidebar(st);
   }
 
   // 就職が決まったら職業ゾーンの残りを飛ばして就職フェアまで一気に進む（フェアの効果は発動しない）
@@ -1189,6 +1228,8 @@ const Game = (() => {
         job: p.job ? p.job.n : null,
         eduRoute: p.chosen[9] === 10 ? "univ" : p.chosen[9] === 21 ? "work" : null,
         midRoute: p.chosen[58] === 59 ? "stable" : p.chosen[58] === 66 ? "gamble" : null,
+        careerRoute: p.chosen[86] === 98 ? "career" : p.chosen[86] === 87 ? "stay" : null,
+        jobLevel: p.jobLevel || 0,
         children: p.children, married: p.married,
         borrowed: (p.stats || {}).borrowed || 0,
         gamble: (p.stats || {}).gamble || 0,
@@ -1228,6 +1269,7 @@ const Game = (() => {
     st.burned = st.burned || [];
     st.players.forEach(p => {
       p.notes = p.notes || 0;
+      p.jobLevel = p.jobLevel || (p.job ? 1 : 0);
       p.stats = p.stats || { gamble: 0, borrowed: 0, housesBought: 0, jobChanges: 0, duelWins: 0 };
     });
     applyBoardLayout(st.layout);   // セーブされたマス配置を復元

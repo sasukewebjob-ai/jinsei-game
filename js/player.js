@@ -9,7 +9,7 @@ function createPlayer(i, name, color, gender) {
     pos: 0, path: [0],
     money: START_MONEY,
     notes: 0,                      // 約束手形の枚数（1枚¥1,000,000・ゴール時¥1,500,000で返済）
-    job: null, married: false, children: 0,
+    job: null, jobLevel: 0, married: false, children: 0,   // jobLevel: ★ランク（昇進マスで上昇、転職でリセット）
     houses: [],                    // HOUSES のインデックス
     insurance: { life: false, fire: false },
     stocks: 0,

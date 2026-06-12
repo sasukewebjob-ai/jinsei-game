@@ -380,6 +380,11 @@ const Icons = (() => {
       P("M6,12 a11,11 0 0 0 11,-9", "none", { "stroke-width": 3, stroke: GREEN }),
       P("M17,3 L20,9 M17,3 L11,4", "none", { "stroke-width": 2.6, stroke: GREEN }),
     ),
+    promoup: g => g.append(
+      star(-2, 2, 11, GOLD),
+      P("M9,-4 L15,-12 L21,-4", "none", { "stroke-width": 3.2, stroke: GREEN }),
+      P("M9,4 L15,-4 L21,4", "none", { "stroke-width": 3.2, stroke: GREEN, opacity: .55 }),
+    ),
     sendpaper: g => g.append(
       G("rotate(-6)", R(-11, -13, 18, 22, 2, "#fff5f2", { stroke: RED }),
         L(-7, -7, 3, -7, 1.4, { opacity: .5 }), L(-7, -2, 3, -2, 1.4, { opacity: .5 }),
@@ -434,6 +439,7 @@ const Icons = (() => {
       case "finalbet":   return "dicepair";
       case "duel":       return "swords";
       case "choice":     return "signpost2";
+      case "promo":      return "promoup";
       case "preclose":   return "scrollstock";
       case "goal":       return "crown";
     }
