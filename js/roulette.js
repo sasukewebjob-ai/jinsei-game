@@ -103,7 +103,7 @@ const Roulette = (() => {
     const desired = ((-(k - 0.5) * 36) % 360 + 360) % 360;
     const cur = ((rotation % 360) + 360) % 360;
     const targetRot = rotation + 360 * 5 + ((desired - cur + 360) % 360) + (Math.random() * 24 - 12);
-    const startRot = rotation, t0 = performance.now(), dur = 2600;
+    const startRot = rotation, t0 = performance.now(), dur = 2600 / (window.TURBO || 1);
     (function frame(now) {
       const t = Math.min(1, (now - t0) / dur);
       const e = 1 - Math.pow(1 - t, 3);
@@ -177,7 +177,7 @@ const Roulette = (() => {
       const r = resolveFn;
       resolveFn = null;
       r && r(k);
-    }, 1000);
+    }, 1000 / (window.TURBO || 1));
   }
 
   function spin(force) {

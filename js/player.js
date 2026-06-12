@@ -32,4 +32,5 @@ function fmt(n) {
   return (n < 0 ? "-¥" : "¥") + a.toLocaleString("ja-JP");
 }
 
-function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+// window.TURBO（シミュレーション用倍速係数）が立っていれば待ち時間を短縮
+function wait(ms) { return new Promise(r => setTimeout(r, ms / (window.TURBO || 1))); }

@@ -359,6 +359,34 @@ const Icons = (() => {
       Ci(-2, -10.5, 1.8, GOLD, { "stroke-width": 1.4 }), Ci(2, -10.5, 1.8, GOLD, { "stroke-width": 1.4 }),
       T("守", 0, 5, 9, GOLD),
     ),
+    swap: g => g.append(
+      P("M-12,-4 a12,12 0 0 1 20,-6", "none", { "stroke-width": 3.4, stroke: BLUE }),
+      P("M8,-10 L11,-16 M8,-10 L2,-12", "none", { "stroke-width": 3, stroke: BLUE }),
+      P("M12,4 a12,12 0 0 1 -20,6", "none", { "stroke-width": 3.4, stroke: RED }),
+      P("M-8,10 L-11,16 M-8,10 L-2,12", "none", { "stroke-width": 3, stroke: RED }),
+    ),
+    maneki: g => g.append(
+      E(0, 6, 10, 9, "#fff"),
+      Ci(0, -6, 9, "#fff"),
+      P("M-8,-11 L-6,-17 L-2,-12 Z", "#fff", { "stroke-width": 1.8 }),
+      P("M8,-11 L6,-17 L2,-12 Z", "#fff", { "stroke-width": 1.8 }),
+      Ci(-3.5, -7, 1.3, I, { stroke: "none" }), Ci(3.5, -7, 1.3, I, { stroke: "none" }),
+      P("M-1.5,-4 q1.5,1.5 3,0", "none", { "stroke-width": 1.4 }),
+      P("M10,-3 q6,-2 5,-9", "none", { "stroke-width": 3.4, stroke: "#fff" }),
+      Ci(0, 9, 4, GOLD, { "stroke-width": 1.6 }), T("¥", 0, 11.8, 6, I),
+    ),
+    rerolldice: g => g.append(
+      G("rotate(-8)", R(-12, -12, 20, 20, 4.5, "#fff"), pip(-7, -7), pip(-2, -2), pip(3, 3)),
+      P("M6,12 a11,11 0 0 0 11,-9", "none", { "stroke-width": 3, stroke: GREEN }),
+      P("M17,3 L20,9 M17,3 L11,4", "none", { "stroke-width": 2.6, stroke: GREEN }),
+    ),
+    sendpaper: g => g.append(
+      G("rotate(-6)", R(-11, -13, 18, 22, 2, "#fff5f2", { stroke: RED }),
+        L(-7, -7, 3, -7, 1.4, { opacity: .5 }), L(-7, -2, 3, -2, 1.4, { opacity: .5 }),
+        Ci(-2, 4, 3.4, "none", { stroke: RED, "stroke-width": 1.6 })),
+      P("M6,8 L17,12", "none", { "stroke-width": 3.4, stroke: RED }),
+      P("M17,12 L11,13 M17,12 L13,7", "none", { "stroke-width": 2.6, stroke: RED }),
+    ),
   };
 
   // ---------- マス種別 → アイコンキー ----------
@@ -373,6 +401,7 @@ const Icons = (() => {
     turbo: "rocket", sabotage: "pillow", collect: "donate", lucky7: "koban",
     advance: "payfast", freeins: "shieldticket", stockgift: "scrollstock", warp: "egg",
     debthalf: "cutpaper", appraise: "vase", comeback: "acecard", omamori: "omamori",
+    swapseat: "swap", maneki: "maneki", reroll: "rerolldice", tsukemawashi: "sendpaper",
   };
 
   function squareKey(sq) {

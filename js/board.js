@@ -210,7 +210,7 @@ const Board = (() => {
     Sound.play("step");
     focusXY(s.x, s.y);
     return new Promise(res => {
-      const t0 = performance.now(), dur = 240;
+      const t0 = performance.now(), dur = 240 / (window.TURBO || 1);
       function frame(now) {
         const t = Math.min(1, (now - t0) / dur);
         const e = 1 - Math.pow(1 - t, 2);

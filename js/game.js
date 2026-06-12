@@ -53,9 +53,18 @@ const Game = (() => {
   }
 
   function paySalary(p, mult = 1) {
-    const a = (p.job ? p.job.s : SALARY_JOBLESS) * mult;
+    let a = (p.job ? p.job.s : SALARY_JOBLESS) * mult;
+    const maneki = p.cards.filter(c => c === "maneki").length;
+    a += maneki * 100000;
     gain(p, a);
-    UI.log(`💴 ${p.name}の給料日 +${fmt(a)}${p.job ? "" : "（無職なのでバイト代）"}${mult > 1 ? "✨ダブル給料！" : ""}`);
+    UI.log(`💴 ${p.name}の給料日 +${fmt(a)}${p.job ? "" : "（無職なのでバイト代）"}${mult > 1 ? "✨ダブル給料！" : ""}${maneki ? "🐱招き猫の御利益！" : ""}`);
+  }
+
+  // 総資産が全員の中で唯一の最下位か（ビリの意地の条件）
+  function isUnderdog(p) {
+    if (st.players.length < 3 || st.round < 3) return false;
+    const mine = estimateAssets(st, p);
+    return st.players.every(o => o.id === p.id || estimateAssets(st, o) > mine);
   }
 
   // ---------- ゲーム開始 ----------
@@ -93,9 +102,40 @@ const Game = (() => {
         UI.renderSidebar(st);
       }
       st.cur = (st.cur + 1) % st.players.length;
-      if (st.cur === 0) st.round++;
+      if (st.cur === 0) {
+        st.round++;
+        // 3ラウンドごとに号外ニュース（全員イベント）
+        if (st.round % 3 === 0 && st.players.some(o => !o.goaled)) await roundNews();
+      }
     }
     showResults();
+  }
+
+  // 号外ニュース：新聞カットイン→全員に効果
+  async function roundNews() {
+    const nw = NEWS[Math.floor(Math.random() * NEWS.length)];
+    Fx.cutin("📰", "号外！" + nw.h);
+    await wait(1200);
+    await UI.modal({ title: `📰 号外：${nw.h}`, body: `${nw.e} ${nw.d}` });
+    const apply = (p, a) => { if (a > 0) gain(p, a); else if (a < 0) pay(p, -a); };
+    st.players.filter(p => !p.goaled).forEach(p => {
+      switch (nw.kind) {
+        case "all":        apply(p, nw.amount); break;
+        case "perChild":   if (p.children) apply(p, nw.amount * p.children); break;
+        case "perHouse":   if (p.houses.length) apply(p, nw.amount * p.houses.length); break;
+        case "perNote":    if (p.notes) apply(p, nw.amount * p.notes); break;
+        case "jobless":    if (!p.job) apply(p, nw.amount); break;
+        case "married":    if (p.married) apply(p, nw.amount); break;
+        case "noLife":     if (!p.insurance.life) apply(p, nw.amount); break;
+        case "salaryHalf": if (p.job) apply(p, Math.round(p.job.s / 2 / 10000) * 10000); break;
+      }
+    });
+    if (nw.kind === "stockMul") {
+      st.stockPrice = Math.max(STOCK.min, Math.min(STOCK.max, Math.round(st.stockPrice * nw.mul / 1000) * 1000));
+      UI.toast(`📰 株価 → ${fmt(st.stockPrice)}`, "info");
+    }
+    UI.log(`📰 号外：${nw.h}（${nw.d}）`);
+    UI.renderSidebar(st);
   }
 
   async function takeTurn(p) {
@@ -131,6 +171,37 @@ const Game = (() => {
     } else {
       n = await Roulette.spin();
       UI.log(`🎡 ${p.name}：${n}が出た`);
+      // サイコロの神様：出目を見てから振り直せる
+      if (p.rerollReady) {
+        const i = await UI.modal({
+          title: "🎲 サイコロの神様",
+          body: `出目は「${n}」。振り直す？（振り直したら2回目の出目で確定）`,
+          buttons: ["🎲 振り直す！", "このままでいい（また今度）"],
+        });
+        if (i === 0) {
+          p.rerollReady = false;
+          n = await Roulette.spin();
+          UI.log(`🎲 ${p.name}が振り直し！出目は${n}`);
+        }
+      } else if (isUnderdog(p)) {
+        // ビリの意地：総資産最下位はもう1回回してどちらか選べる
+        const i = await UI.modal({
+          title: "🔥 ビリの意地！",
+          body: `総資産ビリ特典：もう1回回して、好きな出目を選べる！\n1回目の出目：「${n}」`,
+          buttons: ["🔥 もう1回回す！", "このままでいい"],
+          color: p.color,
+        });
+        if (i === 0) {
+          const n2 = await Roulette.spin();
+          const j = await UI.modal({
+            title: "どっちの出目を使う？",
+            body: `1回目：「${n}」　2回目：「${n2}」`,
+            buttons: [`${n}マス進む`, `${n2}マス進む`],
+          });
+          if (j === 1) n = n2;
+          UI.log(`🔥 ${p.name}のビリの意地！${n}を選んだ`);
+        }
+      }
     }
 
     const res = await moveSteps(p, n, 0);
@@ -216,8 +287,8 @@ const Game = (() => {
           UI.log(`${squareIcon(sq)} ${p.name} ${sq.label} ${fmt(a)}`);
         }
         if (a < 0 && hasJob(p, "ユーチューバー")) {
-          gain(p, 100000);
-          UI.log(`📹 ${p.name}「動画のネタになった」 +${fmt(100000)}`);
+          gain(p, 200000);
+          UI.log(`📹 ${p.name}「動画のネタになった」 +${fmt(200000)}`);
         }
         break;
       }
@@ -355,7 +426,9 @@ const Game = (() => {
     if (CARD_DEFS[cid].passive) return false;
     if (cid === "debthalf") return p.notes > 0;
     if (cid === "comeback") return st.players.every(o => o.id === p.id || estimateAssets(st, o) >= estimateAssets(st, p));
-    if (cid === "sabotage") return st.players.some(o => o.id !== p.id && !o.goaled);
+    if (cid === "sabotage" || cid === "swapseat") return st.players.some(o => o.id !== p.id && !o.goaled);
+    if (cid === "tsukemawashi") return p.notes > 0 && st.players.some(o => o.id !== p.id && !o.goaled);
+    if (cid === "reroll") return !p.rerollReady;
     return true;
   }
 
@@ -430,6 +503,36 @@ const Game = (() => {
         gain(p, 2000000);
         await UI.modal({ title: "🃏 逆転の切り札", body: `どん底からの +${fmt(2000000)}！！まだ終わらんよ！` });
         break;
+      case "swapseat": {
+        const ts = st.players.filter(o => o.id !== p.id && !o.goaled);
+        const ti = await UI.modal({ title: "🔁 入れ替えの号令", body: "誰と位置を入れ替える？", buttons: ts.map(t => t.name).concat("やめる") });
+        if (ti === ts.length) { used = false; break; }
+        const t = ts[ti];
+        [p.pos, t.pos] = [t.pos, p.pos];
+        [p.path, t.path] = [t.path, p.path];
+        Board.placeAll();
+        Board.focusPlayer(p);
+        Sound.play("win");
+        await UI.modal({ title: "🔁 入れ替え成立！", body: `${p.name} と ${t.name} の位置がそっくり入れ替わった！！` });
+        UI.log(`🔁 ${p.name}が${t.name}と位置を入れ替えた！`);
+        break;
+      }
+      case "reroll":
+        p.rerollReady = true;
+        await UI.modal({ title: "🎲 サイコロの神様", body: "次のルーレットから、出目を見て1回だけ振り直せる！（使うまで有効）" });
+        break;
+      case "tsukemawashi": {
+        const ts = st.players.filter(o => o.id !== p.id && !o.goaled);
+        const ti = await UI.modal({ title: "📨 ツケ回しの証文", body: `自分の約束手形1枚（返済 ${fmt(NOTE_REPAY)}）を誰に押し付ける？`, buttons: ts.map(t => t.name).concat("やめる") });
+        if (ti === ts.length) { used = false; break; }
+        const t = ts[ti];
+        p.notes--;
+        t.notes++;
+        Sound.play("bad");
+        await UI.modal({ title: "📨 ツケ回し成功！", body: `${t.name}に約束手形を1枚押し付けた！（${t.name}のゴール時返済 +${fmt(NOTE_REPAY)}）` });
+        UI.log(`📨 ${p.name}が${t.name}に手形を押し付けた！`);
+        break;
+      }
     }
     if (used) {
       p.cards.splice(i, 1);
@@ -781,7 +884,8 @@ const Game = (() => {
       return;
     }
     const lawyer = sq.scam && hasJob(p, "弁護士");
-    const loss = Math.floor(p.money / (lawyer ? 4 : 2) / 1000) * 1000;
+    let loss = Math.floor(p.money / (lawyer ? 4 : 2) / 1000) * 1000;
+    if (sq.cap) loss = Math.min(loss, sq.cap);
     p.money -= loss;
     Sound.play("bad");
     UI.toast(`💸 ${p.name} -${fmt(loss)}`, "bad");
@@ -1063,6 +1167,21 @@ const Game = (() => {
       el.appendChild(row);
       return row;
     });
+    // シミュレーション用の結果出力（tests/sim.py が回収する）
+    window.__gameResult = {
+      round: st.round,
+      players: st.players.map(p => ({
+        name: p.name, money: p.money, goalOrder: p.goalOrder,
+        job: p.job ? p.job.n : null,
+        eduRoute: p.chosen[9] === 10 ? "univ" : p.chosen[9] === 21 ? "work" : null,
+        midRoute: p.chosen[51] === 52 ? "stable" : p.chosen[51] === 66 ? "gamble" : null,
+        children: p.children, married: p.married,
+        borrowed: (p.stats || {}).borrowed || 0,
+        gamble: (p.stats || {}).gamble || 0,
+        housesBought: (p.stats || {}).housesBought || 0,
+      })),
+    };
+
     UI.showScreen("result");
     let skip = false;
     document.getElementById("screen-result").onclick = () => { skip = true; };

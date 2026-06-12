@@ -63,7 +63,7 @@ const Casino = (() => {
   }
 
   async function pickRoulette(p) {
-    const bet = await betModal(p, "🎰 一点賭けルーレット", "1〜10から1つ選んでルーレットを回す。当たれば賭け金が8倍！！");
+    const bet = await betModal(p, "🎰 一点賭けルーレット", "1〜10から1つ選んでルーレットを回す。当たれば賭け金が10倍！！");
     if (bet == null) return;
     const nums = [];
     for (let k = 1; k <= 10; k++) nums.push(String(k));
@@ -73,7 +73,7 @@ const Casino = (() => {
     const k = await Roulette.spin();
     if (k === pick + 1) {
       const gamer = p.job && p.job.n === "プロゲーマー";
-      const win = Math.round(bet * 7 * (gamer ? 1.5 : 1));
+      const win = Math.round(bet * 9 * (gamer ? 1.5 : 1));
       Sound.play("fanfare");
       Game.gain(p, win);
       p.stats && (p.stats.gamble = (p.stats.gamble || 0) + win);
