@@ -80,9 +80,7 @@ const Board = (() => {
       g.appendChild(el("rect", { x: -48, y: -34, width: 96, height: 68, rx: 16, class: cls }));
       g.appendChild(el("rect", { x: -48, y: -34, width: 96, height: 68, rx: 16, fill: "url(#sqGloss)", "pointer-events": "none" }));
       if (s.stop) g.appendChild(el("rect", { x: -48, y: -34, width: 96, height: 68, rx: 16, class: "sq-stopring", fill: "none" }));
-      const ic = el("text", { y: -4, class: "sq-icon" });
-      ic.textContent = squareIcon(s);
-      g.appendChild(ic);
+      g.appendChild(Icons.gNode(Icons.squareKey(s), 34, 0, -8));
       const lb = el("text", { y: 23, class: "sq-label" + (s.t === "payday" ? " sq-label-dark" : "") });
       lb.textContent = s.label;
       g.appendChild(lb);

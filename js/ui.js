@@ -25,13 +25,17 @@ const UI = (() => {
     });
   }
 
-  // body: 文字列 / Node / その配列。文字列内の改行はそのまま表示される（CSSのpre-line）
+  // title/body: 文字列 / Node / その配列。文字列内の改行はそのまま表示される（CSSのpre-line）
   // buttons: 文字列 or {label, disabled} の配列。押されたボタンのindexでresolve
   function modal({ title = "", body = "", buttons = ["OK"], color = "" }) {
     return new Promise(res => {
       const ov = $("#overlay-modal");
       const bd = $("#modal-body"), bb = $("#modal-buttons");
-      $("#modal-title").textContent = title;
+      const tl = $("#modal-title");
+      clear(tl);
+      (Array.isArray(title) ? title : [title]).forEach(c => {
+        if (c != null) tl.append(c.nodeType ? c : String(c));
+      });
       clear(bd);
       (Array.isArray(body) ? body : [body]).forEach(c => {
         if (c != null) bd.append(c.nodeType ? c : String(c));
@@ -75,7 +79,7 @@ const UI = (() => {
     if (amt) body.push(amt);
     if (extra) body.push(h("div", { class: "ev-note" }, extra));
     return modal({
-      title: `${squareIcon(sq)} ${sq.label}`,
+      title: [Icons.el(Icons.squareKey(sq), 30), " " + sq.label],
       body,
       color: p ? p.color : "",
     });

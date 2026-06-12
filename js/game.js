@@ -330,9 +330,9 @@ const Game = (() => {
       title: "🃏 お宝カードGET！",
       body: h("div", { class: "flip-scene" },
         h("div", { class: "flip-inner" },
-          h("div", { class: "flip-face flip-back" }, "🎁", h("small", {}, "お宝カード")),
+          h("div", { class: "flip-face flip-back" }, Icons.el("giftbox", 56), h("small", {}, "お宝カード")),
           h("div", { class: "flip-face flip-front" },
-            h("div", { class: "card-emoji" }, c.e),
+            h("div", { class: "card-art" }, Icons.el(Icons.cardKey(id), 62)),
             h("div", { class: "card-name" }, c.n),
             h("div", { class: "card-desc" }, c.d + (c.passive ? "（自動発動）" : "")),
           ),
@@ -489,7 +489,7 @@ const Game = (() => {
   function jobCardsView(offers) {
     return h("div", { class: "job-cards" }, offers.map(j =>
       h("div", { class: "job-card" },
-        h("div", { class: "jc-e" }, j.e),
+        h("div", { class: "jc-e" }, Icons.el(Icons.jobKey(j.n), 46)),
         h("div", { class: "jc-n" }, j.n),
         h("div", { class: "jc-s" }, `給料 ${fmt(j.s)}`),
         h("div", { class: "jc-d" }, j.d),
@@ -669,7 +669,10 @@ const Game = (() => {
     items.push({ label: "入らない", close: true });
     const idx = await UI.modal({
       title: "🛡️ 保険に入る？",
-      body: opts.map(k => `${INSURANCES[k].e} ${INSURANCES[k].n}：${INSURANCES[k].d}`).join("\n") + `\n所持金 ${fmt(p.money)}`,
+      body: [
+        h("div", { class: "ins-icons" }, opts.map(k => Icons.el(k === "life" ? "shieldheart" : "shieldflame", 44))),
+        opts.map(k => `${INSURANCES[k].e} ${INSURANCES[k].n}：${INSURANCES[k].d}`).join("\n") + `\n所持金 ${fmt(p.money)}`,
+      ],
       buttons: items.map(it => ({ label: it.label, disabled: it.disabled })),
     });
     const it = items[idx];

@@ -406,6 +406,11 @@ body {
 #modal-box.modal-pop { animation: modalpop .26s cubic-bezier(.2, 1.4, .4, 1); }
 @keyframes modalpop { from { transform: scale(.78); opacity: 0; } 70% { transform: scale(1.03); } to { transform: scale(1); } }
 #modal-title { font-size: 24px; font-weight: 900; margin-bottom: 12px; color: #2b3350; }
+#modal-title svg { vertical-align: -7px; margin-right: 4px; }
+.icon { overflow: visible; }
+.card-art { display: flex; justify-content: center; padding: 2px 0; }
+.jc-e { display: flex; justify-content: center; padding: 2px 0; }
+.ins-icons { display: flex; gap: 20px; justify-content: center; padding: 4px 0 8px; }
 #modal-body { font-size: 16px; line-height: 1.8; color: #444; white-space: pre-line; }
 #modal-buttons {
   display: flex; flex-wrap: wrap; gap: 10px;
