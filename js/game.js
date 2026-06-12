@@ -25,7 +25,7 @@ const Game = (() => {
     Sound.play("coin");
     UI.toast(`💰 ${p.name} +${fmt(a)}`, "good");
     Board.floatText(p, `+${fmt(a)}`, "#5dff9e");
-    Fx.coins(Board.tokenScreenPos(p), true, Math.min(14, 6 + Math.floor(a / 300000)));
+    Fx.bills(Fx.bankPos(), Board.tokenScreenPos(p), a);   // 銀行から紙幣が飛んでくる
     UI.renderSidebar(st);
   }
 
@@ -44,7 +44,7 @@ const Game = (() => {
     Sound.play("pay");
     UI.toast(`💸 ${p.name} -${fmt(a)}`, "bad");
     Board.floatText(p, `-${fmt(a)}`, "#ff8a8a");
-    Fx.coins(Board.tokenScreenPos(p), false, 7);
+    Fx.bills(Board.tokenScreenPos(p), Fx.bankPos(), a);   // 銀行へ紙幣を支払う
     UI.renderSidebar(st);
   }
 
@@ -202,10 +202,19 @@ const Game = (() => {
           a = -Math.round(-a / 2 / 10000) * 10000;
           note = `⚖️ 弁護士の腕で被害半減！（${fmt(a)}）`;
         }
-        if (a >= 5000000) { Fx.cutin("💰", "大金GET！！"); await wait(1100); }
-        await UI.eventModal(sq, p, note);
-        applyMoney(p, a);
-        UI.log(`${squareIcon(sq)} ${p.name} ${sq.label} ${fmt(a)}`);
+        // 小さい金額はモーダルなしの吹き出しでテンポよく
+        if (Math.abs(a) <= 300000 && !note) {
+          Sound.play("land");
+          Fx.bubble(Board.tokenScreenPos(p), sq.label, `${a > 0 ? "+" : ""}${fmt(a)}`, a > 0);
+          applyMoney(p, a);
+          UI.log(`${squareIcon(sq)} ${p.name} ${sq.label} ${fmt(a)}`);
+          await wait(1400);
+        } else {
+          if (a >= 5000000) { Fx.cutin("💰", "大金GET！！"); await wait(1100); }
+          await UI.eventModal(sq, p, note);
+          applyMoney(p, a);
+          UI.log(`${squareIcon(sq)} ${p.name} ${sq.label} ${fmt(a)}`);
+        }
         if (a < 0 && hasJob(p, "ユーチューバー")) {
           gain(p, 100000);
           UI.log(`📹 ${p.name}「動画のネタになった」 +${fmt(100000)}`);
@@ -443,6 +452,27 @@ const Game = (() => {
     return UI.modal({ title: "🧿 平和のお守り発動！", body: "お守りが砕け散り、災いを無効化した！" });
   }
 
+  // 手札ビュー：職業カード・保険証券・株券・約束手形・お宝カードを紙のカードで表示
+  function paperCard(cls, iconKey, name, sub) {
+    return h("div", { class: "paper-card pc-" + cls },
+      Icons.el(iconKey, 32),
+      h("div", { class: "pc-n" }, name),
+      h("div", { class: "pc-s" }, sub),
+    );
+  }
+  function handView(p) {
+    const cards = [];
+    if (p.job) cards.push(paperCard("job", Icons.jobKey(p.job.n), p.job.n, `給料 ${fmt(p.job.s)}`));
+    if (p.insurance.life) cards.push(paperCard("ins", "shieldheart", "生命保険証券", "事故・入院を無効化"));
+    if (p.insurance.fire) cards.push(paperCard("ins", "shieldflame", "火災保険証券", "火事から家を守る"));
+    if (p.stocks > 0) cards.push(paperCard("stock", "scrollstock", `株券 ×${p.stocks}`, `時価 ${fmt(p.stocks * st.stockPrice)}`));
+    if (p.notes > 0) cards.push(paperCard("note", "cutpaper", `約束手形 ×${p.notes}`, `要返済 ${fmt(p.notes * NOTE_REPAY)}`));
+    p.houses.forEach(hi => cards.push(paperCard("house", "houseicon", HOUSES[hi].n, "権利書")));
+    p.cards.forEach(cid => cards.push(paperCard("treasure", Icons.cardKey(cid), CARD_DEFS[cid].n, CARD_DEFS[cid].passive ? "自動発動" : "使用可")));
+    if (!cards.length) cards.push(h("div", { class: "hand-empty" }, "手持ちの紙はまだない…これからこれから！"));
+    return h("div", { class: "hand-cards" }, cards);
+  }
+
   // ---------- カード・資産パネル（ルーレット前） ----------
   async function assetPanel(p) {
     while (!p.goaled) {
@@ -461,8 +491,11 @@ const Game = (() => {
       items.push({ label: "閉じる", close: true });
       const idx = await UI.modal({
         title: `🎒 ${p.name}のカード・資産`,
-        body: `所持金 ${fmt(p.money)}${p.notes ? `　🧾手形×${p.notes}（ゴール返済 ${fmt(p.notes * NOTE_REPAY)}）` : ""}　株価 ${fmt(st.stockPrice)}\n` +
-              (p.cards.length ? "使うカードを選んでね（灰色＝自動発動か条件未達成）" : "お宝カードは持っていない"),
+        body: [
+          handView(p),
+          `所持金 ${fmt(p.money)}　株価 ${fmt(st.stockPrice)}\n` +
+          (p.cards.length ? "使うカードを選んでね（灰色＝自動発動か条件未達成）" : ""),
+        ],
         buttons: items.map(it => ({ label: it.label, disabled: it.disabled })),
         color: p.color,
       });
@@ -512,6 +545,26 @@ const Game = (() => {
     UI.log(`💼 ${p.name}は${j.n}に${isChange ? "転職" : "就職"}！（給料 ${fmt(j.s)}／特技：${j.k}）`);
   }
 
+  // 就職が決まったら職業ゾーンの残りを飛ばして就職フェアまで一気に進む（フェアの効果は発動しない）
+  async function skipToFair(p) {
+    let id = p.pos, guard = 0;
+    const path = [];
+    while (guard++ < 10 && SQUARES[id].next.length === 1) {
+      id = SQUARES[id].next[0];
+      path.push(id);
+      if (SQUARES[id].t === "jobfair") break;
+    }
+    if (!path.length || SQUARES[path[path.length - 1]].t !== "jobfair") return;
+    UI.toast("💼 就職が決まった！フェア会場まで一気に進む！", "info");
+    await wait(450);
+    for (const nid of path) {
+      await Board.stepToken(p, nid);
+      p.pos = nid;
+      p.path.push(nid);
+    }
+    await wait(250);
+  }
+
   // 職業マス：止まったら就職（職持ちなら転職もできる。先客がいたら就けない）
   async function jobLand(p, sq) {
     const j = sq.job;
@@ -524,6 +577,7 @@ const Game = (() => {
     if (!p.job) {
       takeJob(p, j, false);
       await UI.modal({ title: `${j.e} ${j.n}に就職！`, body: `${j.d}！\n給料 ${fmt(j.s)}（給料日マスでもらえる・止まれば2倍）\n⭐ 特技：${j.k}`, color: p.color });
+      await skipToFair(p);
       return;
     }
     if (p.job.n === j.n) {
@@ -535,7 +589,10 @@ const Game = (() => {
       body: `いまの仕事：${p.job.e} ${p.job.n}（給料 ${fmt(p.job.s)}／${p.job.k}）\n転職先：${j.e} ${j.n}（給料 ${fmt(j.s)}／${j.k}）`,
       buttons: [`${j.n}に転職する！`, "今のままでいい"],
     });
-    if (i === 0) takeJob(p, j, true);
+    if (i === 0) {
+      takeJob(p, j, true);
+      await skipToFair(p);
+    }
   }
 
   // 就職フェア（止まるマス）：無職なら必ず就職、職持ちは転職チャンス（空いている職業のみ）
@@ -954,11 +1011,16 @@ const Game = (() => {
     p.settle = lines;
 
     Fx.confetti(70);
+    const dest = endingOf(total);
     const tbl = h("table", { class: "settle" },
       lines.map(([t, v]) => h("tr", {}, h("td", {}, t), h("td", { class: v < 0 ? "neg" : "" }, fmt(v)))),
       h("tr", { class: "settle-total" }, h("td", {}, "総資産"), h("td", {}, fmt(total))),
     );
-    await UI.modal({ title: `👑 ${p.name}、${p.goalOrder}位でゴール！！`, body: tbl, color: p.color });
+    await UI.modal({
+      title: `👑 ${p.name}、${p.goalOrder}位でゴール！！`,
+      body: [tbl, h("div", { class: "settle-dest" }, `${dest.e} 老後の行き先：${dest.n}`, h("div", { class: "settle-dest-d" }, dest.d))],
+      color: p.color,
+    });
     UI.log(`👑 ${p.name}がゴール！（${p.goalOrder}位・総資産 ${fmt(total)}）`);
     UI.renderSidebar(st);
   }
@@ -987,11 +1049,13 @@ const Game = (() => {
     const el = document.getElementById("result-list");
     while (el.firstChild) el.removeChild(el.firstChild);
     const rows = ranked.map((p, i) => {
+      const dest = endingOf(p.money);
       const row = h("div", { class: "result-row" + (i === 0 ? " result-win" : ""), style: `border-color:${p.color}` },
         h("div", { class: "result-rank" }, medal[i]),
         h("div", { class: "result-name", style: `color:${p.color}` },
           p.name,
           h("span", { class: "result-title" }, titleOf(p, i, ranked.length)),
+          h("span", { class: "result-dest" }, `${dest.e} ${dest.n}行き`),
         ),
         h("div", { class: "result-money" }, fmt(p.money)),
         h("div", { class: "result-detail" }, (p.settle || []).map(([t, v]) => `${t} ${fmt(v)}`).join("　／　")),

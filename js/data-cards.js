@@ -67,6 +67,16 @@ const GOAL_BONUS = [3000000, 1500000, 800000, 500000, 300000, 200000];
 const NOTE_VALUE = 1000000;
 const NOTE_REPAY = 1500000;
 const NOTE_EARLY = 1200000;
+
+// エンディング：最終総資産で老後の行き先が決まる（本家の億万長者/貧乏農場オマージュ）
+const ENDINGS = [
+  { min: 30000000, n: "億万長者の館", e: "💎", d: "伝説の億万長者として歴史に名を刻んだ！！" },
+  { min: 15000000, n: "大豪邸",       e: "🏰", d: "誰もがうらやむ大豪邸で悠々自適！" },
+  { min: 5000000,  n: "郊外の楽園",   e: "🏡", d: "ほどよい贅沢、のんびり幸せな余生！" },
+  { min: 0,        n: "山小屋暮らし", e: "⛺", d: "質素だけど自由気まま。それも人生！" },
+  { min: -Infinity, n: "貧乏農場",    e: "🌾", d: "畑を耕して再出発…人生はまだ続く！" },
+];
+const endingOf = money => ENDINGS.find(e => money >= e.min);
 const CHILD_BONUS = 500000;
 const MARRIAGE_GIFT = 50000;
 const SALARY_JOBLESS = 100000;   // 無職の給料日はバイト代

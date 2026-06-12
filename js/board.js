@@ -269,10 +269,10 @@ const Board = (() => {
     return r.width > 0 ? r.height / r.width : 0.6;
   }
 
-  function focusXY(x, y) {
+  function focusXY(x, y, width) {
     lastXY = { x, y };
     if (zoomAll) return;
-    const w = Math.min(FOLLOW_W, BOARD_W);
+    const w = Math.min(width || FOLLOW_W, BOARD_W);
     const h = w * aspect();
     target = {
       x: clamp(x - w / 2, 0, Math.max(0, BOARD_W - w)),
@@ -314,7 +314,7 @@ const Board = (() => {
   }
 
   return {
-    build, placeAll, stepToken, focusPlayer, setCurrent, toggleZoom,
+    build, placeAll, stepToken, focusPlayer, focusXY, setCurrent, toggleZoom,
     floatText, tokenScreenPos, syncHouses,
     jump: p => stepToken(p, p.pos),
   };

@@ -1,14 +1,15 @@
-// ルーレット（1〜10）。「回す！」ボタン or ドラッグで弾いて回す
-// spin(force) が Promise<出目> を返す。force指定時はその出目で止まる（ボタンのみ）
+// ルーレット（1〜10）オーバーレイ。spin(force) が Promise<出目> を返す
+// 盤の縁にペグ（突起）があり、回すと針がカタカタ弾かれる本家風ギミック付き
 
 const Roulette = (() => {
   const NS = "http://www.w3.org/2000/svg";
+  const R = 100;                       // 盤の半径
+  const PIVOT_Y = -123;                // 針の支点（盤の上）
   const COLORS = ["#ef4444", "#3b82f6", "#f59e0b", "#10b981", "#8b5cf6",
                   "#ec4899", "#06b6d4", "#f97316", "#84cc16", "#6366f1"];
-  let built = false, rotation = 0, wheel = null, svg = null;
-  let busy = false;            // 回転中・結果表示中
-  let resolveFn = null, forced = 0;
-  let lastSector = 0;
+  let built = false, svg = null, rotG = null, needleG = null;
+  let rotation = 0, busy = false, resolveFn = null, forced = 0;
+  let lastSector = 0, needleAngle = 0;
 
   function sv(name, attrs) {
     const el = document.createElementNS(NS, name);
@@ -20,8 +21,8 @@ const Roulette = (() => {
     if (built) return;
     built = true;
     svg = document.getElementById("roulette-svg");
-    wheel = sv("g", { id: "wheel" });
-    const R = 100;
+    // 盤（回転部）：セクター＋数字＋縁のペグ
+    rotG = sv("g", {});
     for (let k = 1; k <= 10; k++) {
       // セクターkは上(12時)から時計回りに (k-1)*36°〜k*36° を占める
       const a0 = ((k - 1) * 36 - 90) * Math.PI / 180;
@@ -29,31 +30,68 @@ const Roulette = (() => {
       const am = ((k - 0.5) * 36 - 90) * Math.PI / 180;
       const x0 = (Math.cos(a0) * R).toFixed(2), y0 = (Math.sin(a0) * R).toFixed(2);
       const x1 = (Math.cos(a1) * R).toFixed(2), y1 = (Math.sin(a1) * R).toFixed(2);
-      wheel.appendChild(sv("path", {
+      rotG.appendChild(sv("path", {
         d: `M0,0 L${x0},${y0} A${R},${R} 0 0 1 ${x1},${y1} Z`,
         fill: COLORS[k - 1], stroke: "#fff", "stroke-width": 2,
       }));
-      const tx = (Math.cos(am) * 68).toFixed(2), ty = (Math.sin(am) * 68).toFixed(2);
+      const tx = (Math.cos(am) * 66).toFixed(2), ty = (Math.sin(am) * 66).toFixed(2);
       const num = sv("text", {
         x: tx, y: ty, "text-anchor": "middle", "dominant-baseline": "central",
         "font-size": 26, "font-weight": "bold", fill: "#fff",
         transform: `rotate(${(k - 0.5) * 36} ${tx} ${ty})`,
       });
       num.textContent = k;
-      wheel.appendChild(num);
+      rotG.appendChild(num);
+      // セクター境界のペグ（針を弾く突起）
+      const pa = (k * 36 - 90) * Math.PI / 180;
+      rotG.appendChild(sv("circle", {
+        cx: (Math.cos(pa) * (R + 7)).toFixed(2), cy: (Math.sin(pa) * (R + 7)).toFixed(2),
+        r: 5, fill: "#5b4636", stroke: "#fff", "stroke-width": 1.5,
+      }));
     }
-    wheel.appendChild(sv("circle", { r: 18, fill: "#fff", stroke: "#ccc", "stroke-width": 2 }));
-    svg.appendChild(wheel);
+    rotG.appendChild(sv("circle", { r: 18, fill: "#fff", stroke: "#ccc", "stroke-width": 2 }));
+    svg.appendChild(rotG);
+    // 針（支点を中心に弾かれて揺れる）
+    needleG = sv("g", { transform: `translate(0,${PIVOT_Y})` });
+    const needle = sv("g", { class: "needle-rot" });
+    needle.appendChild(sv("path", {
+      d: "M0,34 L6.5,4 L-6.5,4 Z",
+      fill: "#ffd93d", stroke: "#5b4636", "stroke-width": 3, "stroke-linejoin": "round",
+    }));
+    needle.appendChild(sv("circle", { r: 8, fill: "#e8590c", stroke: "#5b4636", "stroke-width": 3 }));
+    needleG.appendChild(needle);
+    svg.appendChild(needleG);
     enableDrag();
   }
 
-  function applyRot() {
-    wheel.setAttribute("transform", `rotate(${rotation})`);
-    const sec = Math.floor(rotation / 36);
-    if (sec !== lastSector) { lastSector = sec; Sound.play("tick"); }
+  function applyNeedle() {
+    needleG.firstChild.setAttribute("transform", `rotate(${needleAngle.toFixed(2)})`);
   }
 
-  // いまポインタ（真上）の下にあるセクター
+  // 回転を反映しつつ、ペグ通過で針を弾く
+  function applyRot(dir) {
+    rotG.setAttribute("transform", `rotate(${rotation})`);
+    const sec = Math.floor(rotation / 36);
+    if (sec !== lastSector) {
+      lastSector = sec;
+      Sound.play("tick");
+      needleAngle = (dir >= 0 ? 1 : -1) * 26;     // ペグに弾かれる！
+    }
+    needleAngle *= 0.82;                           // バネで戻る
+    applyNeedle();
+  }
+
+  // 針の揺れ戻し（停止後）
+  function relaxNeedle() {
+    (function frame() {
+      needleAngle *= 0.78;
+      applyNeedle();
+      if (Math.abs(needleAngle) > 0.4) requestAnimationFrame(frame);
+      else { needleAngle = 0; applyNeedle(); }
+    })();
+  }
+
+  // いま針の下にあるセクター
   function sectorAtPointer() {
     return Math.floor((((-rotation) % 360) + 360) % 360 / 36) + 1;
   }
@@ -70,18 +108,21 @@ const Roulette = (() => {
       const t = Math.min(1, (now - t0) / dur);
       const e = 1 - Math.pow(1 - t, 3);
       rotation = startRot + (targetRot - startRot) * e;
-      applyRot();
+      applyRot(1);
       if (t < 1) requestAnimationFrame(frame);
       else finish(k);
     })(t0);
   }
 
-  // ---- ドラッグで弾く ----
+  // ---- 盤を指で弾く ----
   function enableDrag() {
     let drag = null;
     const angleOf = e => {
       const r = svg.getBoundingClientRect();
-      return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI;
+      // viewBox(-130,-160,260,300) → 盤中心(0,0)は縦方向 160/300 の位置
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height * (160 / 300);
+      return Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
     };
     svg.onpointerdown = e => {
       if (busy || forced) return;
@@ -95,7 +136,7 @@ const Roulette = (() => {
       if (d > 180) d -= 360; if (d < -180) d += 360;
       drag.a = a;
       rotation += d;
-      applyRot();
+      applyRot(d);
       drag.hist.push({ t: performance.now(), rot: rotation });
       if (drag.hist.length > 12) drag.hist.shift();
     };
@@ -104,20 +145,20 @@ const Roulette = (() => {
       const now = performance.now();
       const h = drag.hist.filter(s => now - s.t < 180);   // 直近の動きだけで速度を出す
       drag = null;
-      if (h.length < 2) return;
+      if (h.length < 2) { relaxNeedle(); return; }
       const dt = h[h.length - 1].t - h[0].t;
       let v = dt > 0 ? (h[h.length - 1].rot - h[0].rot) / dt : 0;   // deg/ms
-      if (Math.abs(v) < 0.12) return;                               // 弱すぎたらノーカン
+      if (Math.abs(v) < 0.12) { relaxNeedle(); return; }            // 弱すぎたらノーカン
       v = Math.max(-1.5, Math.min(1.5, v * 1.35));                  // 弾き感ブースト
       busy = true;
       Sound.play("spin");
       let last = performance.now();
-      (function frame(now) {
-        const dms = Math.min(40, now - last);
-        last = now;
+      (function frame(nowF) {
+        const dms = Math.min(40, nowF - last);
+        last = nowF;
         rotation += v * dms;
         v *= Math.pow(0.9935, dms);
-        applyRot();
+        applyRot(v);
         if (Math.abs(v) > 0.012) requestAnimationFrame(frame);
         else finish(sectorAtPointer());
       })(last);
@@ -126,6 +167,7 @@ const Roulette = (() => {
 
   function finish(k) {
     Sound.play("land");
+    relaxNeedle();
     const out = document.getElementById("roulette-result");
     out.textContent = k;
     out.hidden = false;
@@ -134,7 +176,7 @@ const Roulette = (() => {
       busy = false;
       const r = resolveFn;
       resolveFn = null;
-      if (r) r(k);
+      r && r(k);
     }, 1000);
   }
 
@@ -150,7 +192,7 @@ const Roulette = (() => {
       const hint = document.getElementById("roulette-hint");
       out.hidden = true;
       btn.disabled = false;
-      hint.textContent = forced ? "🚀 ターボ発動中！ボタンで回そう" : "ホイールをドラッグで弾いてもOK！";
+      hint.textContent = forced ? "🚀 ターボ発動中！ボタンで回そう" : "盤を指で弾いてもOK！";
       ov.hidden = false;
       btn.onclick = () => {
         if (busy) return;
