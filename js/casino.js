@@ -70,7 +70,7 @@ const Casino = (() => {
     nums.push("やめる");
     const pick = await UI.modal({ title: "🎯 どの数字に賭ける？", body: `賭け金：${fmt(bet)}`, buttons: nums });
     if (pick === 10) return;
-    const k = await Roulette.spin();
+    const k = await Roulette.spin(0, `🎰 一点賭けルーレット「${pick + 1}」に賭け中（移動しません）`);
     if (k === pick + 1) {
       const gamer = p.job && p.job.n === "プロゲーマー";
       const win = Math.round(bet * 9 * (gamer ? 1.5 : 1));

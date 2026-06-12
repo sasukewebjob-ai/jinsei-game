@@ -180,7 +180,8 @@ const Roulette = (() => {
     }, 1000 / (window.TURBO || 1));
   }
 
-  function spin(force) {
+  // label: 何のためのルーレットか（移動/決闘/カジノ…）を盤上に明示する
+  function spin(force, label) {
     build();
     return new Promise(res => {
       resolveFn = res;
@@ -190,6 +191,7 @@ const Roulette = (() => {
       const btn = document.getElementById("btn-do-spin");
       const out = document.getElementById("roulette-result");
       const hint = document.getElementById("roulette-hint");
+      document.getElementById("roulette-label").textContent = label || "ルーレット";
       out.hidden = true;
       btn.disabled = false;
       hint.textContent = forced ? "🚀 ターボ発動中！ボタンで回そう" : "盤を指で弾いてもOK！";

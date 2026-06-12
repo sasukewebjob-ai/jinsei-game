@@ -113,6 +113,20 @@ const UI = (() => {
     });
   }
 
+  // 移動バナー：出目と残り歩数を常時表示（停止理由も明示）
+  let bannerTimer = null;
+  function moveBanner(text, holdMs) {
+    const elB = $("#move-banner");
+    if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
+    if (text != null) {
+      elB.textContent = text;
+      elB.hidden = false;
+      if (holdMs) bannerTimer = setTimeout(() => { elB.hidden = true; }, holdMs);
+    } else {
+      bannerTimer = setTimeout(() => { elB.hidden = true; }, holdMs || 0);
+    }
+  }
+
   function toast(text, type = "") {
     const area = $("#toast-area");
     const t = h("div", { class: "toast " + type }, text);
@@ -178,5 +192,5 @@ const UI = (() => {
     $("#stock-ticker").textContent = `📈 現在の株価 ${fmt(st.stockPrice)}`;
   }
 
-  return { showScreen, modal, eventModal, handoff, preroll, toast, log, renderHeader, renderSidebar };
+  return { showScreen, modal, eventModal, handoff, preroll, toast, log, renderHeader, renderSidebar, moveBanner };
 })();

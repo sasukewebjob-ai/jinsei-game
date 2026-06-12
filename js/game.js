@@ -145,10 +145,10 @@ const Game = (() => {
     let n;
     if (p.forceTen) {
       p.forceTen = false;
-      n = await Roulette.spin(10);
+      n = await Roulette.spin(10, `🚗 ${p.name}の移動ルーレット（ターボ）`);
       UI.log(`🚀 ${p.name}のターボチケット発動！出目は10！`);
     } else {
-      n = await Roulette.spin();
+      n = await Roulette.spin(0, `🚗 ${p.name}の移動ルーレット`);
       UI.log(`🎡 ${p.name}：${n}が出た`);
       // サイコロの神様：出目を見てから振り直せる
       if (p.rerollReady) {
@@ -159,7 +159,7 @@ const Game = (() => {
         });
         if (i === 0) {
           p.rerollReady = false;
-          n = await Roulette.spin();
+          n = await Roulette.spin(0, `🎲 ${p.name}の振り直しルーレット`);
           UI.log(`🎲 ${p.name}が振り直し！出目は${n}`);
         }
       } else if (isUnderdog(p)) {
@@ -171,7 +171,7 @@ const Game = (() => {
           color: p.color,
         });
         if (i === 0) {
-          const n2 = await Roulette.spin();
+          const n2 = await Roulette.spin(0, `🔥 ビリの意地：2回目のルーレット`);
           const j = await UI.modal({
             title: "どっちの出目を使う？",
             body: `1回目：「${n}」　2回目：「${n2}」`,
@@ -190,19 +190,37 @@ const Game = (() => {
 
   // ---------- 移動 ----------
   async function moveSteps(p, n, depth) {
+    const banner = depth === 0;
+    let taken = 0, stopped = false;
+    if (banner) UI.moveBanner(`🎡 ${p.name}：出目 ${n}！`);
     for (let i = 0; i < n; i++) {
       const cur = SQUARES[p.pos];
       if (cur.t === "goal") break;
       const nid = await chooseNext(p, cur);
-      await Board.stepToken(p, nid);
+      // 論理位置を先に更新してからアニメーション（placeAllが旧位置に巻き戻すバグの修正）
       p.pos = nid;
       p.path.push(nid);
+      await Board.stepToken(p, nid);
+      taken++;
       const sq = SQUARES[nid];
-      if (sq.t === "goal") { await arriveGoal(p); return "goal"; }
+      if (banner) UI.moveBanner(i < n - 1 ? `🎡 出目 ${n}：あと ${n - 1 - i} マス` : `🎡 出目 ${n}：${n}マス進んでとうちゃく！`);
+      if (sq.t === "goal") { UI.moveBanner(null); await arriveGoal(p); return "goal"; }
       if (i < n - 1) {
         if (sq.pass) await passEffect(p, sq);
-        if (sq.stop) { UI.toast("✋ 止まるマス！", "info"); break; }
+        if (sq.stop) {
+          stopped = true;
+          UI.moveBanner(`✋ 「${sq.label}」で完全停止！（残り ${n - 1 - i} マスは消滅）`, 2600);
+          Sound.play("land");
+          break;
+        }
       }
+    }
+    if (banner && !stopped) UI.moveBanner(null, 1200);
+    // 移動検証：出目どおり進めなかったのに正当な理由（停止マス/ゴール）がない場合はバグとして記録
+    const landed = SQUARES[p.pos];
+    if (taken < n && !landed.stop && landed.t !== "goal") {
+      console.error(`[MOVE-BUG] 出目${n}に対して${taken}マスしか進んでいない（停止理由なし／位置id=${p.pos} ${landed.label}）`);
+      UI.log(`⚠️ 移動検証エラー：出目${n}で${taken}マス（開発向けログ）`);
     }
     return "land";
   }
@@ -672,9 +690,9 @@ const Game = (() => {
     UI.toast("💼 就職が決まった！フェア会場まで一気に進む！", "info");
     await wait(450);
     for (const nid of path) {
-      await Board.stepToken(p, nid);
       p.pos = nid;
       p.path.push(nid);
+      await Board.stepToken(p, nid);
     }
     await wait(250);
   }
@@ -1041,10 +1059,10 @@ const Game = (() => {
       buttons: ts.map(t => t.name), color: p.color,
     });
     const t = ts[ti];
-    await UI.modal({ title: "⚔️ ルーレット勝負！", body: `${p.name} VS ${t.name}！\nまずは ${p.name} がルーレットを回す！`, color: p.color });
-    const a = await Roulette.spin();
+    await UI.modal({ title: "⚔️ ルーレット勝負！", body: `${p.name} VS ${t.name}！\nまずは ${p.name} がルーレットを回す！\n※これは移動ではなく勝負のルーレット！`, color: p.color });
+    const a = await Roulette.spin(0, `⚔️ 決闘：${p.name}の番（移動しません）`);
     await UI.modal({ title: `${p.name}の出目は「${a}」！`, body: `続いて ${t.name} の番！`, color: t.color });
-    const b = await Roulette.spin();
+    const b = await Roulette.spin(0, `⚔️ 決闘：${t.name}の番（移動しません）`);
     if (a === b) {
       await UI.modal({ title: `引き分け！（${a} vs ${b}）`, body: "勝負あずかり！互いの健闘を称え合った" });
       UI.log(`⚔️ ${p.name} vs ${t.name} は引き分け`);
@@ -1092,7 +1110,7 @@ const Game = (() => {
       buttons: ["🔥 挑む！", "やめておく"],
     });
     if (i === 1) { UI.log(`🎲 ${p.name}は大勝負を見送った`); return; }
-    const k = await Roulette.spin();
+    const k = await Roulette.spin(0, "🎲 人生最後の大勝負（移動しません）");
     p.stats = p.stats || {};
     p.stats.gamble = (p.stats.gamble || 0) + (k >= 6 ? sq.stake : -sq.stake);
     if (k >= 6) {
@@ -1278,5 +1296,8 @@ const Game = (() => {
     loop();
   }
 
-  return { newGame, load, hasSave, clearSave, gain, pay };
+  return {
+    newGame, load, hasSave, clearSave, gain, pay,
+    positions: () => (st ? st.players.map(p => p.pos) : []),   // テスト用：論理位置の取得
+  };
 })();
