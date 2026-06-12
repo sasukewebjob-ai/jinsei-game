@@ -14,16 +14,26 @@
     }
   }
 
+  let genders = [];
   function renderInputs() {
     const box = $("#player-inputs");
     const prev = [...box.querySelectorAll("input")].map(i => i.value);
     while (box.firstChild) box.removeChild(box.firstChild);
     for (let i = 0; i < count; i++) {
+      if (!genders[i]) genders[i] = i % 2 ? "f" : "m";
       const input = h("input", { type: "text", maxlength: "10", placeholder: `プレイヤー${i + 1}` });
       if (prev[i]) input.value = prev[i];
+      const gWrap = h("div", { class: "gender-toggle" });
+      const mk = g => {
+        const b = h("button", { class: "btn btn-small gbtn" + (genders[i] === g ? " gbtn-on" : "") }, g === "m" ? "👨" : "👩");
+        b.onclick = () => { Sound.play("click"); genders[i] = g; renderInputs(); };
+        return b;
+      };
+      gWrap.append(mk("m"), mk("f"));
       box.appendChild(h("div", { class: "pinput-row" },
         h("span", { class: "pinput-dot", style: `background:${PLAYER_COLORS[i]}` }, i + 1),
         input,
+        gWrap,
       ));
     }
   }
@@ -45,6 +55,7 @@
     const defs = [...document.querySelectorAll("#player-inputs input")].map((inp, i) => ({
       name: inp.value.trim() || `プレイヤー${i + 1}`,
       color: PLAYER_COLORS[i],
+      gender: genders[i] || (i % 2 ? "f" : "m"),
     }));
     Game.newGame(defs);
   };

@@ -1,7 +1,7 @@
 // ゲーム本体：ターン進行のステートマシン・マス効果の解決・精算・セーブ
 
 const Game = (() => {
-  const SAVE_KEY = "jinsei-game-save-v3";
+  const SAVE_KEY = "jinsei-game-save-v4";
 
   const hasJob = (p, name) => p.job && p.job.n === name;
   let st = null;   // { players, cur, round, goalCount, stockPrice, deck, discard, houseDeck }
@@ -72,15 +72,17 @@ const Game = (() => {
     const deck = [];
     Object.keys(CARD_DEFS).forEach(id => deck.push(id, id));   // 各2枚
     st = {
-      players: defs.map((d, i) => createPlayer(i, d.name, d.color)),
+      players: defs.map((d, i) => createPlayer(i, d.name, d.color, d.gender)),
       cur: 0, round: 1, goalCount: 0,
       stockPrice: STOCK.start,
       deck: shuffle(deck), discard: [],
       houseDeck: shuffle(HOUSES.map((_, i) => i)),
       burned: [],
+      layout: makeBoardLayout(),   // 毎ゲーム、章内でマス内容をシャッフル
     };
+    applyBoardLayout(st.layout);
     startUI();
-    UI.log("🏁 ゲームスタート！波乱万丈の人生へ！");
+    UI.log("🏁 ゲームスタート！波乱万丈の人生へ！（マス配置は今回スペシャル）");
     loop();
   }
 
@@ -102,40 +104,9 @@ const Game = (() => {
         UI.renderSidebar(st);
       }
       st.cur = (st.cur + 1) % st.players.length;
-      if (st.cur === 0) {
-        st.round++;
-        // 3ラウンドごとに号外ニュース（全員イベント）
-        if (st.round % 3 === 0 && st.players.some(o => !o.goaled)) await roundNews();
-      }
+      if (st.cur === 0) st.round++;
     }
     showResults();
-  }
-
-  // 号外ニュース：新聞カットイン→全員に効果
-  async function roundNews() {
-    const nw = NEWS[Math.floor(Math.random() * NEWS.length)];
-    Fx.cutin("📰", "号外！" + nw.h);
-    await wait(1200);
-    await UI.modal({ title: `📰 号外：${nw.h}`, body: `${nw.e} ${nw.d}` });
-    const apply = (p, a) => { if (a > 0) gain(p, a); else if (a < 0) pay(p, -a); };
-    st.players.filter(p => !p.goaled).forEach(p => {
-      switch (nw.kind) {
-        case "all":        apply(p, nw.amount); break;
-        case "perChild":   if (p.children) apply(p, nw.amount * p.children); break;
-        case "perHouse":   if (p.houses.length) apply(p, nw.amount * p.houses.length); break;
-        case "perNote":    if (p.notes) apply(p, nw.amount * p.notes); break;
-        case "jobless":    if (!p.job) apply(p, nw.amount); break;
-        case "married":    if (p.married) apply(p, nw.amount); break;
-        case "noLife":     if (!p.insurance.life) apply(p, nw.amount); break;
-        case "salaryHalf": if (p.job) apply(p, Math.round(p.job.s / 2 / 10000) * 10000); break;
-      }
-    });
-    if (nw.kind === "stockMul") {
-      st.stockPrice = Math.max(STOCK.min, Math.min(STOCK.max, Math.round(st.stockPrice * nw.mul / 1000) * 1000));
-      UI.toast(`📰 株価 → ${fmt(st.stockPrice)}`, "info");
-    }
-    UI.log(`📰 号外：${nw.h}（${nw.d}）`);
-    UI.renderSidebar(st);
   }
 
   async function takeTurn(p) {
@@ -341,9 +312,10 @@ const Game = (() => {
       case "jobsq":     await jobLand(p, sq); break;
       case "jobfair":   await jobFair(p, sq.pool); break;
       case "jobchange": await jobChange(p); break;
+      case "preclose":  await preClose(p); break;
       case "marriage":  await marriage(p); break;
       case "child":     await childBirth(p, sq.count); break;
-      case "house":     await houseSquare(p); break;
+      case "house":     await houseSquare(p, sq); break;
       case "insurance": await insuranceSquare(p); break;
       case "stock":     await stockSquare(p); break;
 
@@ -787,20 +759,29 @@ const Game = (() => {
     }
   }
 
-  async function houseSquare(p) {
+  async function houseSquare(p, sq) {
+    const forced = !!(sq && sq.forced);
     await UI.eventModal(SQUARES[p.pos], p);
-    const offers = st.houseDeck.slice(0, 3);
+    let offers = st.houseDeck.slice(0, 3);
+    if (forced) {
+      // 最初のマイホームは身の丈から：安い順3件
+      offers = [...st.houseDeck].sort((a, b) => HOUSES[a].p - HOUSES[b].p).slice(0, 3);
+    }
     if (offers.length === 0) {
       await UI.modal({ title: "🏠 完売御礼", body: "もう売り物件がない…" });
       return;
     }
     const carpenter = hasJob(p, "大工");
     const priceOf = hi => carpenter ? Math.round(HOUSES[hi].p * 0.8 / 10000) * 10000 : HOUSES[hi].p;
-    const items = offers.map(hi => ({ label: `${HOUSES[hi].e} ${HOUSES[hi].n}（${fmt(priceOf(hi))}）`, disabled: p.money < priceOf(hi), hi }));
-    items.push({ label: "買わない", close: true });
+    const items = offers.map(hi => ({
+      label: `${HOUSES[hi].e} ${HOUSES[hi].n}（${fmt(priceOf(hi))}）`,
+      disabled: !forced && p.money < priceOf(hi),
+      hi,
+    }));
+    if (!forced) items.push({ label: "買わない", close: true });
     const idx = await UI.modal({
-      title: "🏠 どの家を買う？",
-      body: `所持金 ${fmt(p.money)}\n家はゴール時の売却ルーレットで ×0.5〜×3 になる！（1〜3:×0.5／4〜7:×1.5／8〜10:×3）\n買った家はマップに実物が建って表札が付くぞ！${carpenter ? "\n🔨 大工の本領！2割引で買える！" : ""}`,
+      title: forced ? "🏠 マイホームを必ず1軒選ぼう！" : "🏠 どの家を買う？",
+      body: `所持金 ${fmt(p.money)}\n家はゴール時の売却ルーレットで ×0.5〜×3 になる！（1〜3:×0.5／4〜7:×1.5／8〜10:×3）\n買った家はマップに実物が建って表札が付くぞ！${forced ? "\n※お金が足りなければ約束手形（1枚¥1,000,000）が自動で発行される" : ""}${carpenter ? "\n🔨 大工の本領！2割引で買える！" : ""}`,
       buttons: items.map(it => ({ label: it.label, disabled: it.disabled })),
     });
     const it = items[idx];
@@ -816,6 +797,39 @@ const Game = (() => {
     Sound.play("coin");
     await UI.modal({ title: "🏠 購入！", body: `${HOUSES[it.hi].e} ${HOUSES[it.hi].n} を手に入れた！\nマップに ${p.name} の表札が立った！` });
     UI.log(`🏠 ${p.name}が${HOUSES[it.hi].n}を購入（${fmt(priceOf(it.hi))}）`);
+  }
+
+  // ゴール前のプチ精算所：資産を整理してからゴールへ
+  async function preClose(p) {
+    await UI.eventModal(SQUARES[p.pos], p);
+    while (true) {
+      const houseVal = p.houses.reduce((s, hi) => s + HOUSES[hi].p, 0);
+      const stockVal = p.stocks * st.stockPrice;
+      const noteDue = p.notes * NOTE_REPAY;
+      const projected = p.money + houseVal + stockVal + p.children * CHILD_BONUS - noteDue;
+      const items = [];
+      if (p.stocks > 0) items.push({ label: `📈 株を全部売る（+${fmt(stockVal)}）`, sell: true });
+      if (p.notes > 0) items.push({ label: `🧾 手形を1枚返済（-${fmt(NOTE_EARLY)}・ゴール返済よりお得）`, disabled: p.money < NOTE_EARLY, repay: true });
+      items.push({ label: "✨ 準備OK！ゴールへ向かう", close: true });
+      const idx = await UI.modal({
+        title: "📋 人生のたな卸し",
+        body: `💰 現金 ${fmt(p.money)}\n🏠 家（基準価値）${fmt(houseVal)}　📈 株 ${fmt(stockVal)}\n👶 子供ボーナス見込み +${fmt(p.children * CHILD_BONUS)}\n🧾 手形返済予定 -${fmt(noteDue)}\n――――――――――\n予想総資産（売却ルーレット・順位ボーナスを除く）：${fmt(projected)}`,
+        buttons: items.map(it => ({ label: it.label, disabled: it.disabled })),
+        color: p.color,
+      });
+      const it = items[idx];
+      if (it.close) return;
+      if (it.sell) {
+        gain(p, stockVal);
+        p.stocks = 0;
+        UI.log(`📈 ${p.name}がたな卸しで株を全売却（+${fmt(stockVal)}）`);
+      }
+      if (it.repay) {
+        pay(p, NOTE_EARLY);
+        p.notes--;
+        UI.log(`🧾 ${p.name}がたな卸しで手形を1枚返済`);
+      }
+    }
   }
 
   async function insuranceSquare(p) {
@@ -1174,7 +1188,7 @@ const Game = (() => {
         name: p.name, money: p.money, goalOrder: p.goalOrder,
         job: p.job ? p.job.n : null,
         eduRoute: p.chosen[9] === 10 ? "univ" : p.chosen[9] === 21 ? "work" : null,
-        midRoute: p.chosen[51] === 52 ? "stable" : p.chosen[51] === 66 ? "gamble" : null,
+        midRoute: p.chosen[58] === 59 ? "stable" : p.chosen[58] === 66 ? "gamble" : null,
         children: p.children, married: p.married,
         borrowed: (p.stats || {}).borrowed || 0,
         gamble: (p.stats || {}).gamble || 0,
@@ -1216,6 +1230,7 @@ const Game = (() => {
       p.notes = p.notes || 0;
       p.stats = p.stats || { gamble: 0, borrowed: 0, housesBought: 0, jobChanges: 0, duelWins: 0 };
     });
+    applyBoardLayout(st.layout);   // セーブされたマス配置を復元
     startUI();
     UI.log("📂 セーブデータから再開");
     loop();

@@ -52,36 +52,40 @@ const Board = (() => {
     // 大地と空
     svg.appendChild(el("rect", { x: 0, y: 0, width: BOARD_W, height: BOARD_H, fill: "url(#skyGrad)" }));
 
-    // 風景
-    Scenery.render(svg);
+    // 風景（旧2600x1700座標系のままスケーリングして配置）
+    const gScenery = el("g", { transform: "translate(0,-5) scale(1.135 1.1667)" });
+    Scenery.render(gScenery);
+    svg.appendChild(gScenery);
 
-    // 道（チェーンごとに滑らかな1本道：外縁→路面→センターライン）
+    // 道（チェーンごとに滑らかな1本道：厚み→外縁→路面→センターライン）
     const gRoad = el("g", {});
     const chains = ROAD_CHAINS.map(c => smoothPath(c.map(id => SQUARES[id])));
-    [["road-outer", null], ["road-inner", null], ["road-center", null]].forEach(([cls]) => {
-      chains.forEach(d => gRoad.appendChild(el("path", { d, class: cls, fill: "none" })));
+    [["road-depth", "translate(0,8)"], ["road-outer", null], ["road-inner", null], ["road-center", null]].forEach(([cls, tr]) => {
+      chains.forEach(d => gRoad.appendChild(el("path", Object.assign({ d, class: cls, fill: "none" }, tr ? { transform: tr } : {}))));
     });
     svg.appendChild(gRoad);
 
     // 物件（購入するとプレイヤーカラーの表札が付く）
-    const gHouses = el("g", {});
+    const gHouses = el("g", { transform: "translate(0,-5) scale(1.135 1.1667)" });
     svg.appendChild(gHouses);
     houseEls = Scenery.houses(gHouses);
     syncHouses(st);
 
-    // マス（影→本体→グロス→アイコン→ラベル）
+    // マス（影→側面(2.5D押し出し)→本体→グロス→アイコン→ラベル）
     const gSq = el("g", {});
     SQUARES.forEach(s => {
       const g = el("g", { transform: `translate(${s.x},${s.y})` });
       let cls = `sq sq-${s.t}`;
       if (s.t === "money") cls += s.amount > 0 ? " sq-plus" : " sq-minus";
       if (s.t === "move") cls += s.steps > 0 ? " sq-mvplus" : " sq-mvminus";
-      g.appendChild(el("rect", { x: -44, y: -28, width: 96, height: 68, rx: 16, fill: "rgba(40,30,10,.22)" }));
-      g.appendChild(el("rect", { x: -48, y: -34, width: 96, height: 68, rx: 16, class: cls }));
-      g.appendChild(el("rect", { x: -48, y: -34, width: 96, height: 68, rx: 16, fill: "url(#sqGloss)", "pointer-events": "none" }));
-      if (s.stop) g.appendChild(el("rect", { x: -48, y: -34, width: 96, height: 68, rx: 16, class: "sq-stopring", fill: "none" }));
-      g.appendChild(Icons.gNode(Icons.squareKey(s), 34, 0, -8));
-      const lb = el("text", { y: 23, class: "sq-label" + (s.t === "payday" ? " sq-label-dark" : "") });
+      g.appendChild(el("rect", { x: -53, y: -30, width: 118, height: 84, rx: 18, fill: "rgba(40,30,10,.22)" }));
+      g.appendChild(el("rect", { x: -59, y: -34, width: 118, height: 84, rx: 18, class: cls }));
+      g.appendChild(el("rect", { x: -59, y: -34, width: 118, height: 84, rx: 18, fill: "rgba(0,0,0,.32)" }));
+      g.appendChild(el("rect", { x: -59, y: -42, width: 118, height: 84, rx: 18, class: cls }));
+      g.appendChild(el("rect", { x: -59, y: -42, width: 118, height: 84, rx: 18, fill: "url(#sqGloss)", "pointer-events": "none" }));
+      if (s.stop) g.appendChild(el("rect", { x: -59, y: -42, width: 118, height: 84, rx: 18, class: "sq-stopring", fill: "none" }));
+      g.appendChild(Icons.gNode(Icons.squareKey(s), 42, 0, -11));
+      const lb = el("text", { y: 28, class: "sq-label" + (s.t === "payday" ? " sq-label-dark" : "") });
       lb.textContent = s.label;
       g.appendChild(lb);
       const tt = el("title", {});
@@ -100,21 +104,22 @@ const Board = (() => {
     tokenEls = {}; tokenXY = {};
     players.forEach(p => {
       const g = el("g", { class: "token" });
-      g.appendChild(el("ellipse", { rx: 32, ry: 24, class: "token-ring", fill: "none", stroke: p.color }));
+      g.appendChild(el("ellipse", { rx: 44, ry: 32, class: "token-ring", fill: "none", stroke: p.color }));
       const car = el("g", { class: "car-flip" });
-      car.appendChild(el("ellipse", { cx: 0, cy: 13, rx: 24, ry: 5, fill: "rgba(0,0,0,.25)" }));
-      car.appendChild(el("rect", { x: -13, y: -18, width: 26, height: 14, rx: 5, fill: p.color, stroke: "rgba(0,0,0,.2)", "stroke-width": 1.5 }));
-      car.appendChild(el("rect", { x: -10, y: -16, width: 20, height: 9, rx: 3, fill: "#cdeffd" }));
-      car.appendChild(el("rect", { x: -24, y: -7, width: 48, height: 17, rx: 7, fill: p.color, stroke: "#fff", "stroke-width": 2.5 }));
+      car.appendChild(el("ellipse", { cx: 0, cy: 17, rx: 33, ry: 6, fill: "rgba(0,0,0,.25)" }));
+      // キャビン（6人乗り：運転手＋配偶者＋子供4人のピンが全部見える）
+      car.appendChild(el("rect", { x: -20, y: -24, width: 50, height: 17, rx: 6, fill: p.color, stroke: "rgba(0,0,0,.2)", "stroke-width": 1.6 }));
+      car.appendChild(el("rect", { x: -17, y: -22, width: 44, height: 12, rx: 4, fill: "#cdeffd" }));
       const pins = el("g", { class: "car-pins" });
       car.appendChild(pins);
-      car.appendChild(el("circle", { cx: -13, cy: 10, r: 6.5, fill: "#2b2b33" }));
-      car.appendChild(el("circle", { cx: 13, cy: 10, r: 6.5, fill: "#2b2b33" }));
-      car.appendChild(el("circle", { cx: -13, cy: 10, r: 2.6, fill: "#ddd" }));
-      car.appendChild(el("circle", { cx: 13, cy: 10, r: 2.6, fill: "#ddd" }));
+      car.appendChild(el("rect", { x: -33, y: -9, width: 66, height: 22, rx: 9, fill: p.color, stroke: "#fff", "stroke-width": 3 }));
+      car.appendChild(el("circle", { cx: -19, cy: 13, r: 8.5, fill: "#2b2b33" }));
+      car.appendChild(el("circle", { cx: 19, cy: 13, r: 8.5, fill: "#2b2b33" }));
+      car.appendChild(el("circle", { cx: -19, cy: 13, r: 3.4, fill: "#ddd" }));
+      car.appendChild(el("circle", { cx: 19, cy: 13, r: 3.4, fill: "#ddd" }));
       g.appendChild(car);
       const plate = el("g", {});
-      plate.appendChild(el("rect", { x: -7, y: -3, width: 14, height: 12, rx: 2.5, fill: "#fff", stroke: "rgba(0,0,0,.25)", "stroke-width": 1 }));
+      plate.appendChild(el("rect", { x: -9, y: -5, width: 18, height: 15, rx: 3, fill: "#fff", stroke: "rgba(0,0,0,.25)", "stroke-width": 1.2 }));
       const num = el("text", { y: 7, class: "car-num" });
       num.textContent = p.id + 1;
       plate.appendChild(num);
@@ -148,23 +153,26 @@ const Board = (() => {
     }
   }
 
-  // 結婚・子供に応じて車にピンを乗せる
+  // 性別・結婚・子供に応じて車にピンを乗せる（運転手＋配偶者＋子供4人まで全員見える）
+  const PIN_M = "#4a90d9", PIN_F = "#f06a9a", PIN_KID = "#ffd23e";
   function syncPins(p) {
     const g = tokenEls[p.id];
     if (!g) return;
     const pins = g.querySelector(".car-pins");
     while (pins.firstChild) pins.removeChild(pins.firstChild);
-    const list = [{ c: "#4a90d9", s: 1 }];                        // 本人
-    if (p.married) list.push({ c: "#f06a9a", s: 1 });             // 配偶者
-    for (let i = 0; i < Math.min(p.children, 2); i++) list.push({ c: "#ffd23e", s: .78 });
+    const self = p.gender === "f" ? PIN_F : PIN_M;
+    const spouse = p.gender === "f" ? PIN_M : PIN_F;
+    const list = [{ c: self, s: 1 }];
+    if (p.married) list.push({ c: spouse, s: 1 });
+    for (let i = 0; i < Math.min(p.children, 4); i++) list.push({ c: PIN_KID, s: .8 });
     list.forEach((pin, i) => {
-      const x = -7 + i * 6.5;
-      pins.appendChild(el("circle", { cx: x, cy: -19.5 - 3 * pin.s, r: 3 * pin.s, fill: pin.c }));
-      pins.appendChild(el("rect", { x: x - 2.4 * pin.s, y: -19.5, width: 4.8 * pin.s, height: 5 * pin.s, rx: 2, fill: pin.c }));
+      const x = -13 + i * 7;
+      pins.appendChild(el("circle", { cx: x, cy: -13.5 - 4 * pin.s, r: 3.6 * pin.s, fill: pin.c, stroke: "rgba(0,0,0,.25)", "stroke-width": 1 }));
+      pins.appendChild(el("rect", { x: x - 2.8 * pin.s, y: -13.5, width: 5.6 * pin.s, height: 5.5 * pin.s, rx: 2.4, fill: pin.c }));
     });
-    const extra = p.children > 2 ? p.children - 2 : 0;
+    const extra = p.children > 4 ? p.children - 4 : 0;
     if (extra > 0) {
-      const t = el("text", { x: 17, y: -20, class: "car-extra" });
+      const t = el("text", { x: 30, y: -26, class: "car-extra" });
       t.textContent = `+${extra}`;
       pins.appendChild(t);
     }
@@ -173,11 +181,11 @@ const Board = (() => {
   // 同じマスに複数コマがいるときのオフセット
   const OFFS = [
     [[0, 0]],
-    [[-20, -8], [20, 10]],
-    [[-22, -12], [22, -6], [0, 14]],
-    [[-22, -14], [22, -14], [-22, 14], [22, 14]],
-    [[-24, -16], [24, -16], [-24, 14], [24, 14], [0, 0]],
-    [[-24, -18], [24, -18], [-24, 16], [24, 16], [0, -32], [0, 30]],
+    [[-28, -10], [28, 12]],
+    [[-30, -16], [30, -8], [0, 18]],
+    [[-30, -18], [30, -18], [-30, 18], [30, 18]],
+    [[-32, -20], [32, -20], [-32, 18], [32, 18], [0, 0]],
+    [[-32, -24], [32, -24], [-32, 22], [32, 22], [0, -44], [0, 42]],
   ];
 
   function setTokenXY(id, x, y) {

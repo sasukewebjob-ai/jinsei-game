@@ -2,9 +2,10 @@
 
 const PLAYER_COLORS = ["#e74c3c", "#3498db", "#2ecc71", "#f39c12", "#9b59b6", "#16a0b8"];
 
-function createPlayer(i, name, color) {
+function createPlayer(i, name, color, gender) {
   return {
     id: i, name, color,
+    gender: gender || (i % 2 ? "f" : "m"),   // 👨 or 👩（車の運転手ピンの色に反映）
     pos: 0, path: [0],
     money: START_MONEY,
     notes: 0,                      // 約束手形の枚数（1枚¥1,000,000・ゴール時¥1,500,000で返済）

@@ -434,6 +434,7 @@ const Icons = (() => {
       case "finalbet":   return "dicepair";
       case "duel":       return "swords";
       case "choice":     return "signpost2";
+      case "preclose":   return "scrollstock";
       case "goal":       return "crown";
     }
     return "flag";

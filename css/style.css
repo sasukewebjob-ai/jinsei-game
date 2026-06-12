@@ -149,6 +149,9 @@ body {
   padding: 9px 14px; border: 2px solid #ddd; border-radius: 10px;
 }
 .pinput-row input:focus { outline: none; border-color: #2e9be6; }
+.gender-toggle { display: flex; gap: 4px; }
+.gbtn { padding: 6px 10px; font-size: 16px; opacity: .45; }
+.gbtn-on { opacity: 1; box-shadow: 0 0 0 3px #ffd93d, 0 3px 0 rgba(0,0,0,.25); }
 .setup-actions { display: flex; justify-content: space-between; margin-top: 26px; }
 
 /* ============ ゲーム画面 ============ */
@@ -189,10 +192,11 @@ body {
 .sc-neon { animation: sc-neonk 1.4s ease-in-out infinite; }
 @keyframes sc-neonk { 50% { opacity: .72; } }
 
-/* 道 */
-.road-outer { stroke: #b8895a; stroke-width: 62; stroke-linecap: round; stroke-linejoin: round; }
-.road-inner { stroke: #f7ead0; stroke-width: 48; stroke-linecap: round; stroke-linejoin: round; }
-.road-center { stroke: #ffffff; stroke-width: 3.5; stroke-dasharray: 15 21; opacity: .75; stroke-linecap: round; }
+/* 道（depth=厚み） */
+.road-depth { stroke: #8a5e35; stroke-width: 74; stroke-linecap: round; stroke-linejoin: round; }
+.road-outer { stroke: #b8895a; stroke-width: 74; stroke-linecap: round; stroke-linejoin: round; }
+.road-inner { stroke: #f7ead0; stroke-width: 58; stroke-linecap: round; stroke-linejoin: round; }
+.road-center { stroke: #ffffff; stroke-width: 4; stroke-dasharray: 18 25; opacity: .75; stroke-linecap: round; }
 
 /* マス */
 .sq { stroke: rgba(0,0,0,.28); stroke-width: 2.5; }
@@ -228,6 +232,7 @@ body {
 .sq-finalbet   { fill: #b45309; }
 .sq-duel       { fill: #be123c; }
 .sq-choice     { fill: #7c3aed; }
+.sq-preclose   { fill: #0e9aa7; }
 
 /* 物件（マップ上の家） */
 .hs .hs-flag { display: none; }
@@ -254,22 +259,21 @@ body {
   to   { transform: translate(1600px, -50px); }
 }
 
-.sq-icon { font-size: 27px; text-anchor: middle; }
 .sq-label {
-  font-size: 12.5px; font-weight: bold; fill: #fff;
+  font-size: 15.5px; font-weight: bold; fill: #fff;
   text-anchor: middle;
   paint-order: stroke;
-  stroke: rgba(0,0,0,.4); stroke-width: 2.6;
+  stroke: rgba(0,0,0,.4); stroke-width: 3;
 }
 .sq-label-dark { fill: #5b4636; stroke: rgba(255,255,255,.65); }
 
 /* コマ（車） */
 .token { pointer-events: none; }
 .car-num {
-  font-size: 9.5px; font-weight: 900; fill: #333;
+  font-size: 12px; font-weight: 900; fill: #333;
   text-anchor: middle;
 }
-.car-extra { font-size: 10px; font-weight: 900; fill: #5b4636; }
+.car-extra { font-size: 12px; font-weight: 900; fill: #5b4636; }
 .token-ring { opacity: 0; stroke-width: 4; }
 .token-cur .token-ring { opacity: 1; animation: ringpulse 1s infinite; }
 @keyframes ringpulse {
