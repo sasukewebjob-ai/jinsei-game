@@ -4,8 +4,8 @@ const Board = (() => {
   const NS = "http://www.w3.org/2000/svg";
   const FOLLOW_W = 1500;            // 追従カメラの表示幅（盤面座標系）
   let svg = null, gTokens = null, gFx = null;
-  let tokenEls = {}, tokenXY = {}, houseEls = null;
-  let players = [];
+  let tokenEls = {}, tokenXY = {}, houseEls = null, sqEls = {};
+  let players = [], curPlayer = null;
   let view = null, target = null, zoomAll = false, lastXY = null;
 
   function el(name, attrs) {
@@ -73,8 +73,10 @@ const Board = (() => {
 
     // マス（影→側面(2.5D押し出し)→本体→グロス→アイコン→ラベル）
     const gSq = el("g", {});
+    sqEls = {};
     SQUARES.forEach(s => {
       const g = el("g", { transform: `translate(${s.x},${s.y})` });
+      sqEls[s.id] = g;
       let cls = `sq sq-${s.t}`;
       if (s.t === "money") cls += s.amount > 0 ? " sq-plus" : " sq-minus";
       if (s.t === "move") cls += s.steps > 0 ? " sq-mvplus" : " sq-mvminus";
@@ -178,14 +180,14 @@ const Board = (() => {
     }
   }
 
-  // 同じマスに複数コマがいるときのオフセット
+  // 同じマスに複数コマがいるときのオフセット（マスの外にはみ出さない範囲で重ねる）
   const OFFS = [
     [[0, 0]],
-    [[-28, -10], [28, 12]],
-    [[-30, -16], [30, -8], [0, 18]],
-    [[-30, -18], [30, -18], [-30, 18], [30, 18]],
-    [[-32, -20], [32, -20], [-32, 18], [32, 18], [0, 0]],
-    [[-32, -24], [32, -24], [-32, 22], [32, 22], [0, -44], [0, 42]],
+    [[-16, -9], [16, 11]],
+    [[-18, -12], [18, -4], [0, 15]],
+    [[-18, -13], [18, -13], [-18, 14], [18, 14]],
+    [[-20, -14], [20, -14], [-20, 15], [20, 15], [0, 0]],
+    [[-20, -16], [20, -16], [-20, 16], [20, 16], [0, -25], [0, 25]],
   ];
 
   function setTokenXY(id, x, y) {
@@ -226,7 +228,12 @@ const Board = (() => {
         const y = from.y + (s.y - from.y) * e - Math.sin(t * Math.PI) * 14;
         tokenEls[p.id].setAttribute("transform", `translate(${x},${y})`);
         if (t < 1) requestAnimationFrame(frame);
-        else { tokenXY[p.id] = { x: s.x, y: s.y }; placeAll(); res(); }
+        else {
+          tokenXY[p.id] = { x: s.x, y: s.y };
+          placeAll();
+          if (curPlayer && curPlayer.id === p.id) markSquare(toId);
+          res();
+        }
       }
       requestAnimationFrame(frame);
     });
@@ -314,7 +321,16 @@ const Board = (() => {
   }
 
   function setCurrent(p) {
+    curPlayer = p;
     players.forEach(o => tokenEls[o.id].classList.toggle("token-cur", o.id === p.id));
+    markSquare();
+  }
+
+  // 手番プレイヤーが今いるマスを光らせる（どのマスに止まっているか一目で分かるように）
+  function markSquare(idOverride) {
+    for (const id in sqEls) sqEls[id].classList.remove("sq-here");
+    const id = idOverride != null ? idOverride : (curPlayer ? curPlayer.pos : null);
+    if (id != null && sqEls[id]) sqEls[id].classList.add("sq-here");
   }
 
   function enableDrag() {

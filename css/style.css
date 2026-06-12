@@ -201,6 +201,8 @@ body {
 /* マス */
 .sq { stroke: rgba(0,0,0,.28); stroke-width: 2.5; }
 .sq-stopring { stroke: #e11d48; stroke-width: 5; stroke-dasharray: 11 7; }
+.sq-here rect.sq { stroke: #ffd93d; stroke-width: 6; }
+.sq-here { filter: drop-shadow(0 0 14px rgba(255, 217, 61, .9)); }
 .sq-start      { fill: #475569; }
 .sq-goal       { fill: #f59e0b; }
 .sq-plus       { fill: #3b9ff0; }

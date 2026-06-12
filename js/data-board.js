@@ -99,7 +99,7 @@ const SQUARES = (() => {
     JOB(JOBS_PRO, "ITクリエイター"),
     JOB(JOBS_PRO, "大学教授"),
     JOB(JOBS_PRO, "宇宙飛行士"),
-    { t: "jobfair", pool: "pro", stop: true, label: "就職フェア", text: "エリート就職フェア！まだ無職ならここで必ず就職！", fixed: true },
+    { t: "jobfair", pool: "all", stop: true, label: "就職フェア", text: "合同就職フェア！全職業から選べる。まだ無職ならここで必ず就職！", fixed: true },
   ]);
 
   // ---- 就職ルート＋手に職ゾーン（←） ----
@@ -114,7 +114,7 @@ const SQUARES = (() => {
     JOB(JOBS_NORMAL, "消防士"),
     JOB(JOBS_NORMAL, "パティシエ"),
     M(50000, "フリマ職人", "断捨離フリマでお小遣い稼ぎ！"),
-    { t: "jobfair", pool: "normal", stop: true, label: "就職フェア", text: "合同就職フェア！まだ無職ならここで必ず就職！", fixed: true },
+    { t: "jobfair", pool: "all", stop: true, label: "就職フェア", text: "合同就職フェア！全職業から選べる。まだ無職ならここで必ず就職！", fixed: true },
   ]);
 
   // ---- 第2章 青春の街（→） ----
