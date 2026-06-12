@@ -136,7 +136,19 @@ const UI = (() => {
     );
   }
 
+  // 連発される再描画を1フレーム1回に集約（ちらつき防止）
+  let sbPending = false, sbState = null;
   function renderSidebar(st) {
+    sbState = st;
+    if (sbPending) return;
+    sbPending = true;
+    requestAnimationFrame(() => {
+      sbPending = false;
+      renderSidebarNow(sbState);
+    });
+  }
+
+  function renderSidebarNow(st) {
     const wrap = $("#player-panels");
     clear(wrap);
     st.players.forEach((p, i) => {

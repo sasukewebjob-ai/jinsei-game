@@ -250,16 +250,28 @@ const Board = (() => {
   }
 
   // ---- カメラ ----
+  // 目標に十分近づいたらスナップして書き換えを止める（毎フレームのサブピクセル再描画＝ちらつき防止）
+  let lastVB = "";
   function startCam() {
     if (view) return;       // rAFループは1本だけ
     view = { x: 0, y: 0, w: BOARD_W, h: BOARD_H };
     target = { ...view };
     (function tick() {
-      view.x += (target.x - view.x) * 0.12;
-      view.y += (target.y - view.y) * 0.12;
-      view.w += (target.w - view.w) * 0.12;
-      view.h += (target.h - view.h) * 0.12;
-      svg.setAttribute("viewBox", `${view.x} ${view.y} ${view.w} ${view.h}`);
+      const d = Math.abs(target.x - view.x) + Math.abs(target.y - view.y)
+              + Math.abs(target.w - view.w) + Math.abs(target.h - view.h);
+      if (d > 0.8) {
+        view.x += (target.x - view.x) * 0.12;
+        view.y += (target.y - view.y) * 0.12;
+        view.w += (target.w - view.w) * 0.12;
+        view.h += (target.h - view.h) * 0.12;
+      } else if (d > 0) {
+        view = { ...target };   // スナップして静止
+      }
+      const vb = `${view.x.toFixed(1)} ${view.y.toFixed(1)} ${view.w.toFixed(1)} ${view.h.toFixed(1)}`;
+      if (vb !== lastVB) {
+        lastVB = vb;
+        svg.setAttribute("viewBox", vb);
+      }
       requestAnimationFrame(tick);
     })();
   }

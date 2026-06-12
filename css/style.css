@@ -327,10 +327,10 @@ body {
   letter-spacing: .1em;
   flex-shrink: 0;
 }
-.pp-moneyrow { display: flex; align-items: center; gap: 10px; }
-.pp-bills { display: flex; flex-direction: column-reverse; gap: 1.5px; }
+.pp-moneyrow { display: flex; align-items: center; gap: 10px; min-height: 26px; }
+.pp-bills { display: flex; gap: 2px; align-items: center; }
 .pp-bill {
-  width: 26px; height: 4px; border-radius: 1.5px;
+  width: 7px; height: 16px; border-radius: 2px;
   border: 1px solid rgba(0,0,0,.3);
 }
 #player-panels { padding: 10px; overflow-y: auto; flex-shrink: 0; max-height: 62%; }
