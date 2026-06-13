@@ -38,6 +38,7 @@ function squareIcon(sq) {
     case "duel":       return "⚔️";
     case "choice":     return "❓";
     case "preclose":   return "📋";
+    case "bridge":     return "🌉";
     case "goal":       return "👑";
   }
   return "⬜";
@@ -279,7 +280,7 @@ const SQUARES = (() => {
     { t: "disaster", kind: "half", scam: true, label: "老後資金詐欺", text: "老後資金を狙う詐欺に遭った！所持金が半分に…！" },
     CD("旅先の市場で「絶対に儲かる壺」を断ったら、お礼に何かくれた"),
     { t: "casino", kind: "roulette", label: "ラストカジノ", text: "人生最後の大勝負！一点賭けルーレット（当たれば10倍）！" },
-    Object.assign(M(-2000000, "ロマンス詐欺", "甘い言葉に騙されて大金を貢いでしまった…"), { scam: true }),
+    { t: "bridge", toll: 100000, pass: true, fixed: true, label: "黄金の関所", text: "ゴールが見えてきた黄金の関所！現金トップの人がここを通ると、通行料として全員から¥100,000を徴収できる！" },
     M(5000000, "ベストセラー", "自叙伝がまさかの大ベストセラー！！"),
     { t: "gift", amount: 300000, stop: true, label: "古希のお祝い", text: "古希のお祝いで完全停止！みんなからお祝い金が集まる！" },
     { t: "housedmg", amount: 600000, label: "ゲリラ豪雨", text: "観測史上最大のゲリラ豪雨で雨漏り！（火災保険でセーフ／家なしなら傘代だけ）" },
@@ -355,7 +356,7 @@ const ROAD_CHAINS = (() => {
 })();
 
 // ---- 毎ゲームのマス内容シャッフル（章内のみ・構造マスは固定） ----
-const SHUFFLE_FIELDS = ["t", "label", "text", "amount", "steps", "kind", "cap", "scam", "childCost",
+const SHUFFLE_FIELDS = ["t", "label", "text", "amount", "steps", "kind", "cap", "scam", "childCost", "toll",
                         "premium", "count", "stake", "pool", "opts", "pass", "stop", "forced", "job", "routes"];
 const BASE_CONTENT = SQUARES.map(s => {
   const o = {};

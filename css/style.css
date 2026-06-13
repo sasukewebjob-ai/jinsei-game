@@ -696,3 +696,15 @@ body.map-peek #btn-map-peek { background: #e8590c; color: #fff; }
 body.map-peek .overlay,
 body.map-peek #action-bar,
 body.map-peek #move-banner { opacity: 0 !important; pointer-events: none !important; }
+
+/* ============ 見た目資産の順位バッジ（家・株を除く現金順） ============ */
+.pp-rank {
+  margin-left: auto; font-size: 11px; font-weight: 900; white-space: nowrap;
+  color: #2f8f4e; background: #eaf7ec; border: 1.5px solid #b9d9b0;
+  border-radius: 999px; padding: 1px 8px;
+}
+.pp-rank-top { color: #9a6b00; background: #fff3cf; border-color: #f0c84a; }
+
+/* 手番交代画面の手札一覧 */
+.handoff-cards { margin-top: 4px; font-size: 14px; color: #444; }
+.handoff-cards-empty { opacity: .55; }

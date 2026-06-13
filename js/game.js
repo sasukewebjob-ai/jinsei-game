@@ -15,6 +15,8 @@ const Game = (() => {
   // 🚀 宇宙飛行士は「重力からの解放」で約束手形の返済が割安（1枚¥1,000,000）
   const repayRate = p => hasJob(p, "宇宙飛行士") ? NOTE_VALUE : NOTE_REPAY;
   const earlyRate = p => hasJob(p, "宇宙飛行士") ? NOTE_VALUE : NOTE_EARLY;
+  // 見た目の資産（現金−手形。家・株は含めない）＝現金トップ判定・順位表示に使う
+  const visibleAssets = p => p.money - p.notes * repayRate(p);
   let st = null;   // { players, cur, round, goalCount, stockPrice, deck, discard, houseDeck }
 
   // ---------- ユーティリティ ----------
@@ -280,8 +282,30 @@ const Game = (() => {
     } else if (sq.t === "money") {
       applyMoney(p, sq.amount);
       UI.log(`${squareIcon(sq)} ${p.name} ${sq.label} ${fmt(sq.amount)}`);
+    } else if (sq.t === "bridge") {
+      await bridgeToll(p, sq);
     }
     await wait(420);
+  }
+
+  // 🌉 黄金の関所：現金トップ（見た目資産1位）の人が通過すると全員から通行料を徴収
+  async function bridgeToll(p, sq) {
+    const others = st.players.filter(o => o.id !== p.id && !o.goaled);
+    const active = st.players.filter(o => !o.goaled);
+    const leader = active.slice().sort((a, b) => visibleAssets(b) - visibleAssets(a))[0];
+    if (!others.length || !leader || leader.id !== p.id) return;   // 1位でない／相手なし→通行のみ
+    const toll = sq.toll || 100000;
+    Fx.cutin("🌉", "関所の通行料！");
+    await wait(900);
+    Sound.play("coin");
+    others.forEach(o => pay(o, toll));
+    gain(p, toll * others.length);
+    await UI.modal({
+      title: "🌉 黄金の関所を通過！",
+      body: `現金トップの ${p.name} が関所を通過！\n通行料として全員から ${fmt(toll)} ずつ、合計 +${fmt(toll * others.length)} を徴収した！`,
+      color: p.color,
+    });
+    UI.log(`🌉 ${p.name}（現金1位）が関所で通行料 +${fmt(toll * others.length)} を徴収！`);
   }
 
   // 後ろに戻る（来た道を戻り、止まったマスの効果は発動）
@@ -411,6 +435,11 @@ const Game = (() => {
         UI.log(`🎁 ${p.name}の${sq.label}！全員から合計 +${fmt(per * os.length)}`);
         break;
       }
+
+      case "bridge":
+        await UI.eventModal(sq, p);
+        await bridgeToll(p, sq);
+        break;
 
       case "stockboom":
         await UI.eventModal(sq, p);
@@ -965,37 +994,36 @@ const Game = (() => {
     UI.log(`🛡️ ${p.name}が${INSURANCES[it.k].n}に加入`);
   }
 
+  // 株マス：売買は1回かぎり（買い増しの連打を防止）
   async function stockSquare(p) {
     await UI.eventModal(SQUARES[p.pos], p);
-    while (true) {
-      const canBuy = Math.floor(p.money / st.stockPrice);
-      const items = [];
-      if (canBuy >= 1) items.push({ label: `1株買う（${fmt(st.stockPrice)}）`, buy: 1 });
-      if (canBuy >= 5) items.push({ label: `5株買う（${fmt(st.stockPrice * 5)}）`, buy: 5 });
-      if (p.stocks >= 1) {
-        items.push({ label: `1株売る（+${fmt(st.stockPrice)}）`, sell: 1 });
-        items.push({ label: `全部売る（${p.stocks}株 → +${fmt(p.stocks * st.stockPrice)}）`, sell: p.stocks });
-      }
-      items.push({ label: "やめる", close: true });
-      const idx = await UI.modal({
-        title: "📈 株式市場",
-        body: `現在の株価：${fmt(st.stockPrice)}\n保有 ${p.stocks}株　所持金 ${fmt(p.money)}\n株価は毎ターン変動。大暴騰（×2）・大暴落（÷2）イベントもある！`,
-        buttons: items.map(it => it.label),
-      });
-      const it = items[idx];
-      if (it.close) return;
-      if (it.buy) {
-        pay(p, st.stockPrice * it.buy);
-        p.stocks += it.buy;
-        UI.log(`📈 ${p.name}が株を${it.buy}株購入`);
-        if (hasJob(p, "ITクリエイター")) {
-          p.stocks += 1;
-          UI.toast("💻 ITクリエイターの本領！1株おまけ", "good");
-          UI.log(`💻 ${p.name}に株1株おまけ`);
-        }
-      }
-      if (it.sell) { p.stocks -= it.sell; gain(p, st.stockPrice * it.sell); UI.log(`📈 ${p.name}が株を${it.sell}株売却`); }
+    const canBuy = Math.floor(p.money / st.stockPrice);
+    const items = [];
+    if (canBuy >= 1) items.push({ label: `1株買う（${fmt(st.stockPrice)}）`, buy: 1 });
+    if (canBuy >= 5) items.push({ label: `5株買う（${fmt(st.stockPrice * 5)}）`, buy: 5 });
+    if (p.stocks >= 1) {
+      items.push({ label: `1株売る（+${fmt(st.stockPrice)}）`, sell: 1 });
+      items.push({ label: `全部売る（${p.stocks}株 → +${fmt(p.stocks * st.stockPrice)}）`, sell: p.stocks });
     }
+    items.push({ label: "やめる", close: true });
+    const idx = await UI.modal({
+      title: "📈 株式市場（売買は1回だけ）",
+      body: `現在の株価：${fmt(st.stockPrice)}\n保有 ${p.stocks}株　所持金 ${fmt(p.money)}\n株価は毎ターン変動。大暴騰（×2）・大暴落（÷2）イベントもある！\n※このマスでの売買は1回かぎり`,
+      buttons: items.map(it => it.label),
+    });
+    const it = items[idx];
+    if (it.close) return;
+    if (it.buy) {
+      pay(p, st.stockPrice * it.buy);
+      p.stocks += it.buy;
+      UI.log(`📈 ${p.name}が株を${it.buy}株購入`);
+      if (hasJob(p, "ITクリエイター")) {
+        p.stocks += 1;
+        UI.toast("💻 ITクリエイターの本領！1株おまけ", "good");
+        UI.log(`💻 ${p.name}に株1株おまけ`);
+      }
+    }
+    if (it.sell) { p.stocks -= it.sell; gain(p, st.stockPrice * it.sell); UI.log(`📈 ${p.name}が株を${it.sell}株売却`); }
   }
 
   // ---------- 災害系 ----------

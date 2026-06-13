@@ -99,7 +99,10 @@ const UI = (() => {
       clear(info);
       info.append(
         h("div", {}, `💰 所持金 ${fmt(p.money)}${p.notes ? `　🧾 手形×${p.notes}` : ""}`),
-        h("div", {}, `${p.job ? p.job.e + " " + p.job.n + "★".repeat(Math.max(0, (p.jobLevel || 1) - 1)) : "👤 無職"}${p.married ? "　💍" : ""}${p.children ? "　👶×" + p.children : ""}${p.cards.length ? "　🃏×" + p.cards.length : ""}`),
+        h("div", {}, `${p.job ? p.job.e + " " + p.job.n + "★".repeat(Math.max(0, (p.jobLevel || 1) - 1)) : "👤 無職"}${p.married ? "　💍" : ""}${p.children ? "　👶×" + p.children : ""}`),
+        p.cards.length
+          ? h("div", { class: "handoff-cards" }, `🃏 手札：${p.cards.map(c => CARD_DEFS[c].e + CARD_DEFS[c].n).join("、")}`)
+          : h("div", { class: "handoff-cards handoff-cards-empty" }, "🃏 手札：なし"),
       );
       $("#btn-handoff-go").onclick = () => { Sound.play("click"); ov.hidden = true; res(); };
       ov.hidden = false;
@@ -171,6 +174,7 @@ const UI = (() => {
   function buildPanel(p) {
     const dot = h("span", { class: "pp-dot" });
     const name = h("span", { class: "pp-name" });
+    const rank = h("span", { class: "pp-rank" });
     const badge = h("span", { class: "pp-badge" });
     const money = h("div", { class: "pp-money" });
     const bills = h("div", { class: "pp-bills" });
@@ -178,18 +182,21 @@ const UI = (() => {
     const line1 = h("div", { class: "pp-line" });
     const line2 = h("div", { class: "pp-line" });
     const el = h("div", { class: "pp" },
-      h("div", { class: "pp-head" }, dot, name, badge),
+      h("div", { class: "pp-head" }, dot, name, rank, badge),
       h("div", { class: "pp-moneyrow" }, money, bills),
       debt, line1, line2,
     );
-    return { el, dot, name, badge, money, bills, billCount: -1, debt, line1, line2 };
+    return { el, dot, name, rank, badge, money, bills, billCount: -1, debt, line1, line2 };
   }
-  function updatePanel(row, p, st, i) {
+  function updatePanel(row, p, st, i, rank) {
     row.el.className = "pp" + (i === st.cur ? " pp-cur" : "") + (p.goaled ? " pp-goal" : "");
     row.el.style.borderColor = p.color;
     row.dot.textContent = p.id + 1;
     row.dot.style.background = p.color;
     row.name.textContent = p.name;
+    row.rank.textContent = (!p.goaled && rank) ? `💰${rank}位` : "";
+    row.rank.hidden = p.goaled || !rank;
+    row.rank.className = "pp-rank" + (rank === 1 ? " pp-rank-top" : "");
     row.badge.textContent = p.goaled ? `🏁 ${p.goalOrder}位` : "";
     row.badge.hidden = !p.goaled;
     row.money.textContent = fmt(p.money);
@@ -214,7 +221,12 @@ const UI = (() => {
       clear(wrap);
       ppCache = { count: st.players.length, rows: st.players.map(p => { const r = buildPanel(p); wrap.appendChild(r.el); return r; }) };
     }
-    st.players.forEach((p, i) => updatePanel(ppCache.rows[i], p, st, i));
+    // 見た目の資産（現金−手形・家/株を除く）で順位付け
+    const va = p => p.money - p.notes * (p.job && p.job.n === "宇宙飛行士" ? NOTE_VALUE : NOTE_REPAY);
+    const ranked = [...st.players].sort((a, b) => va(b) - va(a));
+    const rankOf = {};
+    ranked.forEach((p, idx) => { rankOf[p.id] = idx + 1; });
+    st.players.forEach((p, i) => updatePanel(ppCache.rows[i], p, st, i, rankOf[p.id]));
     $("#stock-ticker").textContent = `📈 現在の株価 ${fmt(st.stockPrice)}`;
   }
 

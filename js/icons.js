@@ -441,6 +441,7 @@ const Icons = (() => {
       case "choice":     return "signpost2";
       case "promo":      return "promoup";
       case "preclose":   return "scrollstock";
+      case "bridge":     return "bridge";
       case "goal":       return "crown";
     }
     return "flag";
@@ -469,6 +470,16 @@ const Icons = (() => {
     Ci(0, 0, 13, "#a78bfa"),
     P("M-4,-4 a4.5,5 0 1 1 7,4 q-2.5,1.5 -2.5,4", "none", { stroke: "#fff", "stroke-width": 3.4 }),
     Ci(0, 9.5, 2, "#fff", { stroke: "none" }),
+  );
+
+  // 🌉 黄金の関所（橋）：川にかかる金色の門橋
+  DEFS.bridge = g => g.append(
+    R(-18, 9, 36, 8, 1, BLUE),                                          // 川
+    P("M-15,9 Q0,-9 15,9", "none", { stroke: BROWN, "stroke-width": 3 }), // アーチ
+    R(-18, 2, 36, 6, 1.5, GOLD),                                        // 路面（金色）
+    R(-15, -13, 4, 16, 1, RED),                                        // 左の門柱
+    R(11, -13, 4, 16, 1, RED),                                         // 右の門柱
+    R(-17, -14, 34, 4, 1, REDD),                                       // 上の横木（関所の門）
   );
 
   return {
