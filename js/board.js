@@ -313,12 +313,13 @@ const Board = (() => {
     focusXY(s.x, s.y);
   }
 
-  function toggleZoom() {
-    zoomAll = !zoomAll;
+  function setZoomAll(flag) {
+    zoomAll = flag;
     if (zoomAll) target = { x: 0, y: 0, w: BOARD_W, h: BOARD_H };
     else if (lastXY) focusXY(lastXY.x, lastXY.y);
     return zoomAll;
   }
+  function toggleZoom() { return setZoomAll(!zoomAll); }
 
   function setCurrent(p) {
     curPlayer = p;
@@ -350,7 +351,7 @@ const Board = (() => {
   }
 
   return {
-    build, placeAll, stepToken, focusPlayer, focusXY, setCurrent, toggleZoom,
+    build, placeAll, stepToken, focusPlayer, focusXY, setCurrent, toggleZoom, setZoomAll,
     floatText, tokenScreenPos, syncHouses,
     jump: p => stepToken(p, p.pos),
   };

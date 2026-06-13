@@ -23,6 +23,9 @@ const UI = (() => {
     ["title", "setup", "game", "result"].forEach(n => {
       document.getElementById("screen-" + n).hidden = (n !== name);
     });
+    const peek = document.getElementById("btn-map-peek");
+    if (peek) peek.hidden = (name !== "game");
+    if (name !== "game") document.body.classList.remove("map-peek");
   }
 
   // title/body: 文字列 / Node / その配列。文字列内の改行はそのまま表示される（CSSのpre-line）
@@ -162,33 +165,56 @@ const UI = (() => {
     });
   }
 
+  // パネルを一度だけ作り、以降は値だけ差分更新する（毎回全消去→全再生成によるちらつきを防止）
+  const BILL_COLORS = ["#4a90d9", "#4cb86b", "#e8a514"];
+  let ppCache = null;
+  function buildPanel(p) {
+    const dot = h("span", { class: "pp-dot" });
+    const name = h("span", { class: "pp-name" });
+    const badge = h("span", { class: "pp-badge" });
+    const money = h("div", { class: "pp-money" });
+    const bills = h("div", { class: "pp-bills" });
+    const debt = h("div", { class: "pp-debt" });
+    const line1 = h("div", { class: "pp-line" });
+    const line2 = h("div", { class: "pp-line" });
+    const el = h("div", { class: "pp" },
+      h("div", { class: "pp-head" }, dot, name, badge),
+      h("div", { class: "pp-moneyrow" }, money, bills),
+      debt, line1, line2,
+    );
+    return { el, dot, name, badge, money, bills, billCount: -1, debt, line1, line2 };
+  }
+  function updatePanel(row, p, st, i) {
+    row.el.className = "pp" + (i === st.cur ? " pp-cur" : "") + (p.goaled ? " pp-goal" : "");
+    row.el.style.borderColor = p.color;
+    row.dot.textContent = p.id + 1;
+    row.dot.style.background = p.color;
+    row.name.textContent = p.name;
+    row.badge.textContent = p.goaled ? `🏁 ${p.goalOrder}位` : "";
+    row.badge.hidden = !p.goaled;
+    row.money.textContent = fmt(p.money);
+    const bc = p.money > 0 ? Math.min(9, 1 + Math.floor(p.money / 1500000)) : 0;
+    if (bc !== row.billCount) {
+      row.billCount = bc;
+      clear(row.bills);
+      for (let k = 0; k < bc; k++) row.bills.appendChild(h("div", { class: "pp-bill", style: `background:${BILL_COLORS[k % 3]}` }));
+    }
+    const repay = p.job && p.job.n === "宇宙飛行士" ? NOTE_VALUE : NOTE_REPAY;
+    row.debt.textContent = p.notes ? `🧾 約束手形×${p.notes}（ゴール返済 ${fmt(p.notes * repay)}）` : "";
+    row.debt.hidden = !p.notes;
+    const stars = "★".repeat(Math.max(0, (p.jobLevel || 1) - 1));
+    row.line1.textContent = `${p.job ? p.job.e + p.job.n + stars : "無職"}　${p.married ? "💍" : ""}${"👶".repeat(p.children)}`;
+    const icons2 = `${p.houses.map(hi => HOUSES[hi].e).join("")}${p.stocks ? ` 📈${p.stocks}株` : ""}${p.insurance.life ? " 🛡️" : ""}${p.insurance.fire ? " 🧯" : ""}${p.cards.length ? ` 🃏${p.cards.length}` : ""}`.trim();
+    row.line2.textContent = icons2;
+    row.line2.hidden = !icons2;
+  }
   function renderSidebarNow(st) {
     const wrap = $("#player-panels");
-    clear(wrap);
-    st.players.forEach((p, i) => {
-      const icons1 = `${p.married ? "💍" : ""}${"👶".repeat(p.children)}`;
-      const icons2 = `${p.houses.map(hi => HOUSES[hi].e).join("")}${p.stocks ? ` 📈${p.stocks}株` : ""}${p.insurance.life ? " 🛡️" : ""}${p.insurance.fire ? " 🧯" : ""}${p.cards.length ? ` 🃏${p.cards.length}` : ""}`;
-      wrap.appendChild(h("div", {
-        class: "pp" + (i === st.cur ? " pp-cur" : "") + (p.goaled ? " pp-goal" : ""),
-        style: `border-color:${p.color}`,
-      },
-        h("div", { class: "pp-head" },
-          h("span", { class: "pp-dot", style: `background:${p.color}` }, p.id + 1),
-          h("span", { class: "pp-name" }, p.name),
-          p.goaled ? h("span", { class: "pp-badge" }, `🏁 ${p.goalOrder}位`) : null,
-        ),
-        h("div", { class: "pp-moneyrow" },
-          h("div", { class: "pp-money" }, fmt(p.money)),
-          h("div", { class: "pp-bills" },
-            Array.from({ length: p.money > 0 ? Math.min(9, 1 + Math.floor(p.money / 1500000)) : 0 },
-              (_, i) => h("div", { class: "pp-bill", style: `background:${["#4a90d9", "#4cb86b", "#e8a514"][i % 3]}` })),
-          ),
-        ),
-        p.notes ? h("div", { class: "pp-debt" }, `🧾 約束手形×${p.notes}（ゴール返済 ${fmt(p.notes * NOTE_REPAY)}）`) : null,
-        h("div", { class: "pp-line" }, `${p.job ? p.job.e + p.job.n + "★".repeat(Math.max(0, (p.jobLevel || 1) - 1)) : "無職"}　${icons1}`),
-        icons2.trim() ? h("div", { class: "pp-line" }, icons2) : null,
-      ));
-    });
+    if (!ppCache || ppCache.count !== st.players.length) {
+      clear(wrap);
+      ppCache = { count: st.players.length, rows: st.players.map(p => { const r = buildPanel(p); wrap.appendChild(r.el); return r; }) };
+    }
+    st.players.forEach((p, i) => updatePanel(ppCache.rows[i], p, st, i));
     $("#stock-ticker").textContent = `📈 現在の株価 ${fmt(st.stockPrice)}`;
   }
 

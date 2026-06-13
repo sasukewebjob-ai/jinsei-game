@@ -1,7 +1,7 @@
 // カジノ系ミニゲーム：ハイ＆ロー / 一点賭けルーレット / 宝くじ
 
 const Casino = (() => {
-  const rnd10 = () => 1 + Math.floor(Math.random() * 10);
+  const rnd8 = () => 1 + Math.floor(Math.random() * 8);
 
   // 賭け金選択（10万単位）。やめたら null を返す
   async function betModal(p, title, note) {
@@ -35,22 +35,22 @@ const Casino = (() => {
   async function highLow(p) {
     const bet = await betModal(p, "🎰 ハイ＆ロー", "基準より上か下かを当てる！配当はリスク次第（当てやすい側ほど少なく、五分に近いほど大きい）。同じ数字なら引き分け（返金）");
     if (bet == null) return;
-    const base = 2 + Math.floor(Math.random() * 8);   // 2〜9（必ず両側に目が残る）
+    const base = 2 + Math.floor(Math.random() * 6);   // 2〜7（1〜8で必ず両側に目が残る）
     // 配当はフェアオッズ（負け目数 ÷ 勝ち目数）。同値1目は引き分けで返金
     const gamer = p.job && p.job.n === "プロゲーマー";
     const payout = winFaces => {
-      const loseFaces = 9 - winFaces;                 // 10 - 引分1 - 勝ち目
+      const loseFaces = 7 - winFaces;                 // 8 - 引分1 - 勝ち目
       let pf = bet * loseFaces / winFaces;
       if (gamer) pf *= 1.5;                            // 🎮 プロゲーマー能力
       return Math.max(10000, Math.round(pf / 10000) * 10000);
     };
-    const hiPay = payout(10 - base), loPay = payout(base - 1);
+    const hiPay = payout(8 - base), loPay = payout(base - 1);
     const g = await UI.modal({
       title: `基準の数字は…「${base}」！`,
-      body: `次に出る数字（1〜10）は ${base} よりハイ？ロー？\n（同じ「${base}」なら引き分けで返金）`,
+      body: `次に出る数字（1〜8）は ${base} よりハイ？ロー？\n（同じ「${base}」なら引き分けで返金）`,
       buttons: [`⬆️ ハイ（+${fmt(hiPay)}）`, `⬇️ ロー（+${fmt(loPay)}）`],
     });
-    const nxt = rnd10();
+    const nxt = rnd8();
     const win = g === 0 ? hiPay : loPay;
     if (nxt === base) {
       await UI.modal({ title: `出た数字は「${nxt}」…引き分け！`, body: "賭け金はそのまま返ってきた。" });

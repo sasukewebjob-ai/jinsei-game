@@ -684,3 +684,15 @@ body {
 .result-money { grid-area: money; font-size: 24px; font-weight: 900; color: #1a7f37; }
 .result-detail { grid-area: detail; font-size: 11.5px; color: #888; }
 #btn-to-title { margin-top: 14px; }
+
+/* ============ 全体マップ俯瞰トグル（どんな状態でも最前面） ============ */
+#btn-map-peek {
+  position: fixed; left: 14px; bottom: 14px; z-index: 9999;
+  font-weight: 900;
+  box-shadow: 0 4px 16px rgba(0,0,0,.35);
+}
+body.map-peek #btn-map-peek { background: #e8590c; color: #fff; }
+/* 俯瞰中はオーバーレイ・行動バー・移動バナーを透明化して盤面全体を見せる（状態は保持） */
+body.map-peek .overlay,
+body.map-peek #action-bar,
+body.map-peek #move-banner { opacity: 0 !important; pointer-events: none !important; }

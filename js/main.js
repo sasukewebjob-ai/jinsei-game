@@ -61,7 +61,17 @@
   };
 
   $("#btn-zoom").onclick = () => {
-    $("#btn-zoom").textContent = Board.toggleZoom() ? "🔍 プレイヤーへ" : "🗺️ 全体マップ";
+    const on = Board.toggleZoom();
+    $("#btn-zoom").textContent = on ? "🔍 プレイヤーへ" : "🗺️ 全体マップ";
+    if (!on) document.body.classList.remove("map-peek");
+  };
+
+  // 全体マップ俯瞰トグル：ルーレット中・モーダル中などどんな状態でも盤面全体を確認できる
+  $("#btn-map-peek").onclick = () => {
+    const on = document.body.classList.toggle("map-peek");
+    Board.setZoomAll(on);
+    $("#btn-map-peek").textContent = on ? "✖ 閉じる" : "🗺️ 全体";
+    $("#btn-zoom").textContent = on ? "🔍 プレイヤーへ" : "🗺️ 全体マップ";
   };
 
   $("#btn-sound").onclick = () => {

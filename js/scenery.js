@@ -386,7 +386,7 @@ const Scenery = (() => {
   function houses(parent) {
     const out = {};
     HOUSE_SPOTS.forEach(({ hi, x, y, s }) => {
-      const g = grp(x, y, s, "hs hs-sale");
+      const g = grp(x, y, s * 1.5, "hs hs-sale");   // マップ上の家を大きく表示
       g.appendChild(HOUSE_SPRITES[hi]());
       g.appendChild(saleFlag());
       const plateG = el("g", { class: "hs-plate", display: "none" });

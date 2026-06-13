@@ -1,7 +1,7 @@
 // ゲーム本体：ターン進行のステートマシン・マス効果の解決・精算・セーブ
 
 const Game = (() => {
-  const SAVE_KEY = "jinsei-game-save-v5";
+  const SAVE_KEY = "jinsei-game-save-v6";
 
   const hasJob = (p, name) => p.job && p.job.n === name;
 
@@ -12,6 +12,9 @@ const Game = (() => {
     return Math.round(p.job.s * PROMO_MULT[Math.min(p.jobLevel || 1, 3)] / 10000) * 10000;
   }
   const starsOf = p => "★".repeat(Math.max(0, (p.jobLevel || 1) - 1));
+  // 🚀 宇宙飛行士は「重力からの解放」で約束手形の返済が割安（1枚¥1,000,000）
+  const repayRate = p => hasJob(p, "宇宙飛行士") ? NOTE_VALUE : NOTE_REPAY;
+  const earlyRate = p => hasJob(p, "宇宙飛行士") ? NOTE_VALUE : NOTE_EARLY;
   let st = null;   // { players, cur, round, goalCount, stockPrice, deck, discard, houseDeck }
 
   // ---------- ユーティリティ ----------
@@ -91,7 +94,30 @@ const Game = (() => {
     applyBoardLayout(st.layout);
     startUI();
     UI.log("🏁 ゲームスタート！波乱万丈の人生へ！（マス配置は今回スペシャル）");
-    loop();
+    (async () => { await decideOrder(); loop(); })();
+  }
+
+  // スタート順をルーレットで決める（出目の大きい人から先攻・同点はランダムでタイブレーク）
+  async function decideOrder() {
+    if (!st || st.players.length < 2) return;
+    await UI.modal({ title: "🎲 スタート順を決めよう！", body: "全員が順番にルーレットを回して、出目の大きい人から先攻！\n（パス＆プレイ：端末を順番に回してね）" });
+    const rolls = [];
+    for (const p of st.players) {
+      await UI.handoff(p);
+      const n = await Roulette.spin(0, `🎲 ${p.name}のスタート順ルーレット（移動しません）`);
+      rolls.push({ p, n, tie: Math.random() });
+      UI.log(`🎲 ${p.name}のスタート順ルーレット：${n}`);
+      await UI.modal({ title: `${p.name}：「${n}」！`, body: `スタート順を決める出目は ${n}！`, color: p.color });
+    }
+    rolls.sort((a, b) => b.n - a.n || a.tie - b.tie);
+    const ordered = rolls.map(r => r.p);
+    st.players.length = 0;
+    ordered.forEach(p => st.players.push(p));   // 同じ配列を並べ替え（Boardの参照を維持）
+    st.cur = 0;
+    Sound.play("fanfare");
+    await UI.modal({ title: "🏁 スタート順きまり！", body: rolls.map((r, i) => `${i + 1}番目　${r.p.name}（出目 ${r.n}）`).join("\n") });
+    UI.log(`🏁 スタート順：${rolls.map(r => r.p.name).join(" → ")}`);
+    UI.renderSidebar(st);
   }
 
   function startUI() {
@@ -142,9 +168,10 @@ const Game = (() => {
       break;
     }
 
-    let n;
+    let n, usedTurbo = false;
     if (p.forceTen) {
       p.forceTen = false;
+      usedTurbo = true;
       n = await Roulette.spin(8, `🚗 ${p.name}の移動ルーレット（ターボ）`);
       UI.log(`🚀 ${p.name}のターボチケット発動！出目は8！`);
     } else {
@@ -183,8 +210,8 @@ const Game = (() => {
       }
     }
 
-    // ✈️ パイロット：移動の出目+1（毎ターン1マス多く進む）
-    if (hasJob(p, "パイロット")) {
+    // ✈️ パイロット：移動の出目+1（毎ターン1マス多く進む。ターボの確定8には乗らない）
+    if (!usedTurbo && hasJob(p, "パイロット")) {
       n += 1;
       UI.log(`✈️ ${p.name}はパイロット！出目+1で${n}マス進む`);
     }
@@ -271,6 +298,13 @@ const Game = (() => {
       case "start": break;
 
       case "money": {
+        if (sq.childCost && p.children < 1) {
+          Sound.play("click");
+          Fx.bubble(Board.tokenScreenPos(p), sq.label, "子供がいないのでセーフ！", true);
+          UI.log(`👶 ${p.name}は子供がいないので「${sq.label}」の出費なし`);
+          await wait(1200);
+          break;
+        }
         let a = sq.amount, note = "";
         if (a < 0 && sq.scam && hasJob(p, "弁護士")) {
           a = -Math.round(-a / 2 / 10000) * 10000;
@@ -569,7 +603,7 @@ const Game = (() => {
     if (p.insurance.life) cards.push(paperCard("ins", "shieldheart", "生命保険証券", "事故・入院を無効化"));
     if (p.insurance.fire) cards.push(paperCard("ins", "shieldflame", "火災保険証券", "火事から家を守る"));
     if (p.stocks > 0) cards.push(paperCard("stock", "scrollstock", `株券 ×${p.stocks}`, `時価 ${fmt(p.stocks * st.stockPrice)}`));
-    if (p.notes > 0) cards.push(paperCard("note", "cutpaper", `約束手形 ×${p.notes}`, `要返済 ${fmt(p.notes * NOTE_REPAY)}`));
+    if (p.notes > 0) cards.push(paperCard("note", "cutpaper", `約束手形 ×${p.notes}`, `要返済 ${fmt(p.notes * repayRate(p))}`));
     p.houses.forEach(hi => cards.push(paperCard("house", "houseicon", HOUSES[hi].n, "権利書")));
     p.cards.forEach(cid => cards.push(paperCard("treasure", Icons.cardKey(cid), CARD_DEFS[cid].n, CARD_DEFS[cid].passive ? "自動発動" : "使用可")));
     if (!cards.length) cards.push(h("div", { class: "hand-empty" }, "手持ちの紙はまだない…これからこれから！"));
@@ -589,7 +623,7 @@ const Game = (() => {
         items.push({ label: `📈 全部売る（${p.stocks}株 → +${fmt(p.stocks * st.stockPrice)}）`, sell: p.stocks });
       }
       if (p.notes > 0) {
-        items.push({ label: `🧾 手形を1枚早期返済（-${fmt(NOTE_EARLY)}・ゴール返済よりお得）`, disabled: p.money < NOTE_EARLY, repay: true });
+        items.push({ label: `🧾 手形を1枚早期返済（-${fmt(earlyRate(p))}・ゴール返済よりお得）`, disabled: p.money < earlyRate(p), repay: true });
       }
       items.push({ label: "閉じる", close: true });
       const idx = await UI.modal({
@@ -605,9 +639,9 @@ const Game = (() => {
       const it = items[idx];
       if (it.close) return;
       if (it.repay) {
-        pay(p, NOTE_EARLY);
+        pay(p, earlyRate(p));
         p.notes--;
-        UI.log(`🧾 ${p.name}が手形を1枚早期返済（-${fmt(NOTE_EARLY)}）`);
+        UI.log(`🧾 ${p.name}が手形を1枚早期返済（-${fmt(earlyRate(p))}）`);
         continue;
       }
       if (it.sell) {
@@ -640,6 +674,10 @@ const Game = (() => {
   function freeJobs(pool, p) {
     const list = pool === "pro" ? JOBS_PRO : pool === "normal" ? JOBS_NORMAL : [...JOBS_NORMAL, ...JOBS_PRO];
     return list.filter(j => !jobTakenBy(j.n, p) && !(p.job && p.job.n === j.n));
+  }
+  // 就職フェア用：空いている職業のうち給料が低い順にn件（大学/就職どちらのコースでも全プールから）
+  function lowestJobs(p, n) {
+    return [...freeJobs("all", p)].sort((a, b) => a.s - b.s).slice(0, n);
   }
   function takeJob(p, j, isChange) {
     const hadStars = (p.jobLevel || 1) > 1;
@@ -708,6 +746,18 @@ const Game = (() => {
       return;
     }
     if (!p.job) {
+      const i = await UI.modal({
+        title: `${j.e} ${j.n}になる？`,
+        body: `${j.d}\n給料 ${fmt(j.s)}（給料日にもらえる・止まれば2倍）\n⭐ 特技：${j.k}\n\nこのマスの「${j.n}」に就職する？見送れば無職のまま先へ進む（就職フェアで決められる）`,
+        buttons: [`${j.n}になる！`, `${j.n}にならない（見送る）`],
+        color: p.color,
+      });
+      if (i === 1) {
+        Sound.play("click");
+        await UI.modal({ title: "🙅 見送った", body: `「${j.n}」は今回見送った。無職のまま進む。` });
+        UI.log(`🙅 ${p.name}は${j.n}を見送った（無職のまま進む）`);
+        return;
+      }
       takeJob(p, j, false);
       await UI.modal({ title: `${j.e} ${j.n}に就職！`, body: `${j.d}！\n給料 ${fmt(j.s)}（給料日マスでもらえる・止まれば2倍）\n⭐ 特技：${j.k}`, color: p.color });
       await skipToFair(p);
@@ -732,23 +782,23 @@ const Game = (() => {
   async function jobFair(p, pool) {
     await UI.eventModal(SQUARES[p.pos], p);
     if (!p.job) { await jobSquare(p, pool); return; }
-    const offers = pickN(freeJobs(pool, p), 3);
+    const offers = lowestJobs(p, 3);
     if (!offers.length) {
       await UI.modal({ title: "💼 就職フェア", body: "求人はすべて出払っていた…今の仕事を頑張ろう！" });
       return;
     }
     const buttons = offers.map(j => `${j.e} ${j.n}（給料 ${fmt(j.s)}）`);
     buttons.push(`今のまま（${p.job.n}）`);
-    const idx = await UI.modal({ title: "💼 就職フェア（転職してもOK）", body: jobCardsView(offers), buttons });
+    const idx = await UI.modal({ title: "💼 就職フェア（給料が手ごろな求人3つ・転職してもOK）", body: jobCardsView(offers), buttons });
     if (idx === offers.length) return;
     takeJob(p, offers[idx], true);
   }
 
   async function jobSquare(p, pool) {
-    const offers = pickN(freeJobs(pool, p), 3);
+    const offers = lowestJobs(p, 3);
     const idx = await UI.modal({
-      title: pool === "pro" ? "💼 就職活動（エリート編）" : "💼 就職！",
-      body: [jobCardsView(offers), h("p", { class: "small" }, "給料日マスを通るたびに給料がもらえる！")],
+      title: "💼 就職フェア（手ごろな求人から選ぶ）",
+      body: [jobCardsView(offers), h("p", { class: "small" }, "給料が低めの空き求人を3つ提案。給料日マスを通るたびに給料がもらえる！")],
       buttons: offers.map(j => `${j.e} ${j.n}にする`),
     });
     takeJob(p, offers[idx], false);
@@ -839,7 +889,7 @@ const Game = (() => {
     if (!forced) items.push({ label: "買わない", close: true });
     const idx = await UI.modal({
       title: forced ? "🏠 マイホームを必ず1軒選ぼう！" : "🏠 どの家を買う？",
-      body: `所持金 ${fmt(p.money)}\n家はゴール時の売却ルーレットで ×0.5〜×3 になる！（1〜3:×0.5／4〜7:×1.5／8〜10:×3）\n買った家はマップに実物が建って表札が付くぞ！${forced ? "\n※お金が足りなければ約束手形（1枚¥1,000,000）が自動で発行される" : ""}${carpenter ? "\n🔨 大工の本領！2割引で買える！" : ""}`,
+      body: `所持金 ${fmt(p.money)}\n家はゴール時の売却ルーレットで ×0.5〜×3 になる！（1〜2:×0.5／3〜6:×1.5／7〜8:×3）\n買った家はマップに実物が建って表札が付くぞ！${forced ? "\n※お金が足りなければ約束手形（1枚¥1,000,000）が自動で発行される" : ""}${carpenter ? "\n🔨 大工の本領！2割引で買える！" : ""}`,
       buttons: items.map(it => ({ label: it.label, disabled: it.disabled })),
     });
     const it = items[idx];
@@ -863,15 +913,16 @@ const Game = (() => {
     while (true) {
       const houseVal = p.houses.reduce((s, hi) => s + HOUSES[hi].p, 0);
       const stockVal = p.stocks * st.stockPrice;
-      const noteDue = p.notes * NOTE_REPAY;
-      const projected = p.money + houseVal + stockVal + p.children * CHILD_BONUS - noteDue;
+      const noteDue = p.notes * repayRate(p);
+      const childBonus = p.children * CHILD_BONUS * (hasJob(p, "大学教授") ? 2 : 1);
+      const projected = p.money + houseVal + stockVal + childBonus - noteDue;
       const items = [];
       if (p.stocks > 0) items.push({ label: `📈 株を全部売る（+${fmt(stockVal)}）`, sell: true });
-      if (p.notes > 0) items.push({ label: `🧾 手形を1枚返済（-${fmt(NOTE_EARLY)}・ゴール返済よりお得）`, disabled: p.money < NOTE_EARLY, repay: true });
+      if (p.notes > 0) items.push({ label: `🧾 手形を1枚返済（-${fmt(earlyRate(p))}・ゴール返済よりお得）`, disabled: p.money < earlyRate(p), repay: true });
       items.push({ label: "✨ 準備OK！ゴールへ向かう", close: true });
       const idx = await UI.modal({
         title: "📋 人生のたな卸し",
-        body: `💰 現金 ${fmt(p.money)}\n🏠 家（基準価値）${fmt(houseVal)}　📈 株 ${fmt(stockVal)}\n👶 子供ボーナス見込み +${fmt(p.children * CHILD_BONUS)}\n🧾 手形返済予定 -${fmt(noteDue)}\n――――――――――\n予想総資産（売却ルーレット・順位ボーナスを除く）：${fmt(projected)}`,
+        body: `💰 現金 ${fmt(p.money)}\n🏠 家（基準価値）${fmt(houseVal)}　📈 株 ${fmt(stockVal)}\n👶 子供ボーナス見込み +${fmt(childBonus)}${hasJob(p, "大学教授") ? "（🎓教授で2倍）" : ""}\n🧾 手形返済予定 -${fmt(noteDue)}\n――――――――――\n予想総資産（売却ルーレット・順位ボーナスを除く）：${fmt(projected)}`,
         buttons: items.map(it => ({ label: it.label, disabled: it.disabled })),
         color: p.color,
       });
@@ -883,7 +934,7 @@ const Game = (() => {
         UI.log(`📈 ${p.name}がたな卸しで株を全売却（+${fmt(stockVal)}）`);
       }
       if (it.repay) {
-        pay(p, NOTE_EARLY);
+        pay(p, earlyRate(p));
         p.notes--;
         UI.log(`🧾 ${p.name}がたな卸しで手形を1枚返済`);
       }
@@ -950,11 +1001,11 @@ const Game = (() => {
   // ---------- 災害系 ----------
   async function disaster(p, sq) {
     await UI.eventModal(sq, p);
-    if (consumeOmamori(p)) { await omamoriModal(); return; }
     if (p.money <= 0) {
       await UI.modal({ title: "😇 セーフ？", body: "取られるお金がなかった…！" });
       return;
     }
+    if (consumeOmamori(p)) { await omamoriModal(); return; }
     const lawyer = sq.scam && hasJob(p, "弁護士");
     let loss = Math.floor(p.money / (lawyer ? 4 : 2) / 1000) * 1000;
     if (sq.cap) loss = Math.min(loss, sq.cap);
@@ -979,13 +1030,13 @@ const Game = (() => {
       UI.log(`🩺 ${p.name}は医者なのでセーフ`);
       return;
     }
-    if (consumeOmamori(p)) { await omamoriModal(); return; }
     if (p.insurance.life) {
       Sound.play("win");
       await UI.modal({ title: "🛡️ 生命保険発動！", body: "保険のおかげで支払いゼロ！入っててよかった〜" });
       UI.log(`🛡️ ${p.name}は生命保険でセーフ`);
       return;
     }
+    if (consumeOmamori(p)) { await omamoriModal(); return; }
     pay(p, sq.amount);
     UI.log(`🚑 ${p.name} ${sq.label} -${fmt(sq.amount)}`);
   }
@@ -998,7 +1049,6 @@ const Game = (() => {
       UI.log(`🚒 ${p.name}は消防士なのでセーフ`);
       return;
     }
-    if (consumeOmamori(p)) { await omamoriModal(); return; }
     if (p.insurance.fire) {
       Sound.play("win");
       await UI.modal({ title: "🧯 火災保険発動！", body: "保険のおかげで家は無事！入っててよかった〜" });
@@ -1009,6 +1059,7 @@ const Game = (() => {
       await UI.modal({ title: "🔥 もらい火", body: "家を持っていなかったのが不幸中の幸い…被害なし！" });
       return;
     }
+    if (consumeOmamori(p)) { await omamoriModal(); return; }
     const i = Math.floor(Math.random() * p.houses.length);
     const hi = p.houses[i];
     const hs = HOUSES[hi];
@@ -1030,7 +1081,6 @@ const Game = (() => {
       UI.log(`🌾 ${p.name}は農家なのでセーフ`);
       return;
     }
-    if (consumeOmamori(p)) { await omamoriModal(); return; }
     if (p.insurance.fire) {
       Sound.play("win");
       await UI.modal({ title: "🧯 火災保険発動！", body: "保険が修理費を全額カバー！入っててよかった〜" });
@@ -1042,6 +1092,7 @@ const Game = (() => {
       await UI.modal({ title: "☔ 家がなくてラッキー？", body: `家を持っていないので被害は最小限。雑費 ${fmt(-100000)} で済んだ！` });
       return;
     }
+    if (consumeOmamori(p)) { await omamoriModal(); return; }
     pay(p, sq.amount);
     await UI.modal({ title: "🌪️ 修理費が痛い…", body: `家の修理費 ${fmt(-sq.amount)} を支払った…` });
     UI.log(`🌪️ ${p.name} ${sq.label} -${fmt(sq.amount)}`);
@@ -1102,19 +1153,19 @@ const Game = (() => {
     UI.log(`❓ ${p.name} ${sq.label}：${out.t}${m ? `（${fmt(m)}）` : ""}`);
   }
 
-  // 人生最後の大勝負：ルーレット6以上で勝ち
+  // 人生最後の大勝負：ルーレット5以上で勝ち（1〜8なので五分）
   async function finalBet(p, sq) {
     await UI.eventModal(sq, p);
     const i = await UI.modal({
       title: "🎲 人生最後の大勝負",
-      body: `ルーレットで6以上なら +${fmt(sq.stake)}、5以下なら ${fmt(-sq.stake)}！`,
+      body: `ルーレットで5以上なら +${fmt(sq.stake)}、4以下なら ${fmt(-sq.stake)}！（五分の大勝負）`,
       buttons: ["🔥 挑む！", "やめておく"],
     });
     if (i === 1) { UI.log(`🎲 ${p.name}は大勝負を見送った`); return; }
     const k = await Roulette.spin(0, "🎲 人生最後の大勝負（移動しません）");
     p.stats = p.stats || {};
-    p.stats.gamble = (p.stats.gamble || 0) + (k >= 6 ? sq.stake : -sq.stake);
-    if (k >= 6) {
+    p.stats.gamble = (p.stats.gamble || 0) + (k >= 5 ? sq.stake : -sq.stake);
+    if (k >= 5) {
       Sound.play("fanfare");
       gain(p, sq.stake);
       await UI.modal({ title: `「${k}」！勝負あり！！`, body: `大勝負に勝った！ +${fmt(sq.stake)}！！` });
@@ -1176,8 +1227,9 @@ const Game = (() => {
       lines.push(["🏺 鑑定団の招待状", 1000000]); total += 1000000;
     });
     if (p.notes > 0) {
-      const d = -p.notes * NOTE_REPAY;
-      lines.push([`🧾 約束手形の返済（${p.notes}枚 × ${fmt(NOTE_REPAY)}）`, d]); total += d;
+      const rr = repayRate(p);
+      const d = -p.notes * rr;
+      lines.push([`🧾 約束手形の返済（${p.notes}枚 × ${fmt(rr)}${hasJob(p, "宇宙飛行士") ? "・🚀重力からの解放で割安" : ""}）`, d]); total += d;
     }
     p.money = total;
     p.notes = 0; p.stocks = 0; p.cards = [];
@@ -1279,12 +1331,20 @@ const Game = (() => {
   function clearSave() {
     try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
   }
+  // セーブの最小構造を検証（マス構成変更後の旧セーブによる破損・進行不能を防ぐ）
+  function validSave(s) {
+    return !!s && Array.isArray(s.players) && s.players.length >= 2
+      && Array.isArray(s.layout) && s.layout.length === SQUARES.length
+      && s.players.every(p => Number.isInteger(p.pos) && p.pos >= 0 && p.pos < SQUARES.length);
+  }
   function hasSave() {
-    try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
+    try { return validSave(JSON.parse(localStorage.getItem(SAVE_KEY))); } catch (e) { return false; }
   }
   function load() {
-    try { st = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { st = null; }
-    if (!st) return;
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { s = null; }
+    if (!validSave(s)) { clearSave(); UI.showScreen("title"); return; }
+    st = s;
     st.burned = st.burned || [];
     st.players.forEach(p => {
       p.notes = p.notes || 0;
@@ -1299,6 +1359,6 @@ const Game = (() => {
 
   return {
     newGame, load, hasSave, clearSave, gain, pay,
-    positions: () => (st ? st.players.map(p => p.pos) : []),   // テスト用：論理位置の取得
+    positions: () => { if (!st) return []; const a = []; st.players.forEach(p => { a[p.id] = p.pos; }); return a; },   // テスト用：論理位置をプレイヤーid順で（コマのDOM順と一致させる）
   };
 })();
