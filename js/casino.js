@@ -33,25 +33,33 @@ const Casino = (() => {
   }
 
   async function highLow(p) {
-    const bet = await betModal(p, "🎰 ハイ＆ロー", "次の数字(1〜10)が基準よりハイかローか当てれば2倍！同じ数字なら引き分け（返金）");
+    const bet = await betModal(p, "🎰 ハイ＆ロー", "基準より上か下かを当てる！配当はリスク次第（当てやすい側ほど少なく、五分に近いほど大きい）。同じ数字なら引き分け（返金）");
     if (bet == null) return;
-    const base = rnd10();
+    const base = 2 + Math.floor(Math.random() * 8);   // 2〜9（必ず両側に目が残る）
+    // 配当はフェアオッズ（負け目数 ÷ 勝ち目数）。同値1目は引き分けで返金
+    const gamer = p.job && p.job.n === "プロゲーマー";
+    const payout = winFaces => {
+      const loseFaces = 9 - winFaces;                 // 10 - 引分1 - 勝ち目
+      let pf = bet * loseFaces / winFaces;
+      if (gamer) pf *= 1.5;                            // 🎮 プロゲーマー能力
+      return Math.max(10000, Math.round(pf / 10000) * 10000);
+    };
+    const hiPay = payout(10 - base), loPay = payout(base - 1);
     const g = await UI.modal({
       title: `基準の数字は…「${base}」！`,
-      body: `次に出る数字（1〜10）は ${base} よりハイ？ロー？`,
-      buttons: ["⬆️ ハイ", "⬇️ ロー"],
+      body: `次に出る数字（1〜10）は ${base} よりハイ？ロー？\n（同じ「${base}」なら引き分けで返金）`,
+      buttons: [`⬆️ ハイ（+${fmt(hiPay)}）`, `⬇️ ロー（+${fmt(loPay)}）`],
     });
     const nxt = rnd10();
+    const win = g === 0 ? hiPay : loPay;
     if (nxt === base) {
       await UI.modal({ title: `出た数字は「${nxt}」…引き分け！`, body: "賭け金はそのまま返ってきた。" });
       UI.log(`🎰 ${p.name}のハイ＆ローは引き分け`);
     } else if ((g === 0) === (nxt > base)) {
-      const gamer = p.job && p.job.n === "プロゲーマー";
-      const win = Math.round(bet * (gamer ? 1.5 : 1));
       Sound.play("win");
       Game.gain(p, win);
       p.stats && (p.stats.gamble = (p.stats.gamble || 0) + win);
-      await UI.modal({ title: `出た数字は「${nxt}」！勝ち！！`, body: `+${fmt(win)}！${gamer ? "\n🎮 プロゲーマーの本領！勝ち額1.5倍！" : ""}` });
+      await UI.modal({ title: `出た数字は「${nxt}」！勝ち！！`, body: `+${fmt(win)}！${gamer ? "\n🎮 プロゲーマーの本領！配当1.5倍！" : ""}` });
       UI.log(`🎰 ${p.name}がハイ＆ローで勝利！ +${fmt(win)}`);
     } else {
       Sound.play("bad");
@@ -63,13 +71,14 @@ const Casino = (() => {
   }
 
   async function pickRoulette(p) {
-    const bet = await betModal(p, "🎰 一点賭けルーレット", "1〜10から1つ選んでルーレットを回す。当たれば賭け金が10倍！！");
+    const bet = await betModal(p, "🎰 一点賭けルーレット", "1〜8から1つ選んでルーレットを回す。当たれば賭け金が10倍！！");
     if (bet == null) return;
     const nums = [];
-    for (let k = 1; k <= 10; k++) nums.push(String(k));
+    for (let k = 1; k <= 8; k++) nums.push(String(k));
+    const quitIdx = nums.length;
     nums.push("やめる");
     const pick = await UI.modal({ title: "🎯 どの数字に賭ける？", body: `賭け金：${fmt(bet)}`, buttons: nums });
-    if (pick === 10) return;
+    if (pick === quitIdx) return;
     const k = await Roulette.spin(0, `🎰 一点賭けルーレット「${pick + 1}」に賭け中（移動しません）`);
     if (k === pick + 1) {
       const gamer = p.job && p.job.n === "プロゲーマー";

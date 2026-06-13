@@ -1,10 +1,12 @@
-// ルーレット（1〜10）オーバーレイ。spin(force) が Promise<出目> を返す
+// ルーレット（1〜8）オーバーレイ。spin(force) が Promise<出目> を返す
 // 盤の縁にペグ（突起）があり、回すと針がカタカタ弾かれる本家風ギミック付き
 
 const Roulette = (() => {
   const NS = "http://www.w3.org/2000/svg";
   const R = 100;                       // 盤の半径
   const PIVOT_Y = -123;                // 針の支点（盤の上）
+  const SECTORS = 8;                   // 出目の数（1〜SECTORS）
+  const SEG = 360 / SECTORS;           // 1セクターの角度
   const COLORS = ["#ef4444", "#3b82f6", "#f59e0b", "#10b981", "#8b5cf6",
                   "#ec4899", "#06b6d4", "#f97316", "#84cc16", "#6366f1"];
   let built = false, svg = null, rotG = null, needleG = null;
@@ -23,11 +25,11 @@ const Roulette = (() => {
     svg = document.getElementById("roulette-svg");
     // 盤（回転部）：セクター＋数字＋縁のペグ
     rotG = sv("g", {});
-    for (let k = 1; k <= 10; k++) {
-      // セクターkは上(12時)から時計回りに (k-1)*36°〜k*36° を占める
-      const a0 = ((k - 1) * 36 - 90) * Math.PI / 180;
-      const a1 = (k * 36 - 90) * Math.PI / 180;
-      const am = ((k - 0.5) * 36 - 90) * Math.PI / 180;
+    for (let k = 1; k <= SECTORS; k++) {
+      // セクターkは上(12時)から時計回りに (k-1)*SEG°〜k*SEG° を占める
+      const a0 = ((k - 1) * SEG - 90) * Math.PI / 180;
+      const a1 = (k * SEG - 90) * Math.PI / 180;
+      const am = ((k - 0.5) * SEG - 90) * Math.PI / 180;
       const x0 = (Math.cos(a0) * R).toFixed(2), y0 = (Math.sin(a0) * R).toFixed(2);
       const x1 = (Math.cos(a1) * R).toFixed(2), y1 = (Math.sin(a1) * R).toFixed(2);
       rotG.appendChild(sv("path", {
@@ -38,12 +40,12 @@ const Roulette = (() => {
       const num = sv("text", {
         x: tx, y: ty, "text-anchor": "middle", "dominant-baseline": "central",
         "font-size": 26, "font-weight": "bold", fill: "#fff",
-        transform: `rotate(${(k - 0.5) * 36} ${tx} ${ty})`,
+        transform: `rotate(${(k - 0.5) * SEG} ${tx} ${ty})`,
       });
       num.textContent = k;
       rotG.appendChild(num);
       // セクター境界のペグ（針を弾く突起）
-      const pa = (k * 36 - 90) * Math.PI / 180;
+      const pa = (k * SEG - 90) * Math.PI / 180;
       rotG.appendChild(sv("circle", {
         cx: (Math.cos(pa) * (R + 7)).toFixed(2), cy: (Math.sin(pa) * (R + 7)).toFixed(2),
         r: 5, fill: "#5b4636", stroke: "#fff", "stroke-width": 1.5,
@@ -71,7 +73,7 @@ const Roulette = (() => {
   // 回転を反映しつつ、ペグ通過で針を弾く
   function applyRot(dir) {
     rotG.setAttribute("transform", `rotate(${rotation})`);
-    const sec = Math.floor(rotation / 36);
+    const sec = Math.floor(rotation / SEG);
     if (sec !== lastSector) {
       lastSector = sec;
       Sound.play("tick");
@@ -93,14 +95,14 @@ const Roulette = (() => {
 
   // いま針の下にあるセクター
   function sectorAtPointer() {
-    return Math.floor((((-rotation) % 360) + 360) % 360 / 36) + 1;
+    return Math.floor((((-rotation) % 360) + 360) % 360 / SEG) + 1;
   }
 
   // ---- ボタン回し：狙った出目に向かってイージング回転 ----
   function spinTo(k) {
     busy = true;
     Sound.play("spin");
-    const desired = ((-(k - 0.5) * 36) % 360 + 360) % 360;
+    const desired = ((-(k - 0.5) * SEG) % 360 + 360) % 360;
     const cur = ((rotation % 360) + 360) % 360;
     const targetRot = rotation + 360 * 5 + ((desired - cur + 360) % 360) + (Math.random() * 24 - 12);
     const startRot = rotation, t0 = performance.now(), dur = 2600 / (window.TURBO || 1);
@@ -199,7 +201,7 @@ const Roulette = (() => {
       btn.onclick = () => {
         if (busy) return;
         btn.disabled = true;
-        spinTo(forced || (1 + Math.floor(Math.random() * 10)));
+        spinTo(forced || (1 + Math.floor(Math.random() * SECTORS)));
       };
     });
   }

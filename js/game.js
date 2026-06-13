@@ -145,8 +145,8 @@ const Game = (() => {
     let n;
     if (p.forceTen) {
       p.forceTen = false;
-      n = await Roulette.spin(10, `🚗 ${p.name}の移動ルーレット（ターボ）`);
-      UI.log(`🚀 ${p.name}のターボチケット発動！出目は10！`);
+      n = await Roulette.spin(8, `🚗 ${p.name}の移動ルーレット（ターボ）`);
+      UI.log(`🚀 ${p.name}のターボチケット発動！出目は8！`);
     } else {
       n = await Roulette.spin(0, `🚗 ${p.name}の移動ルーレット`);
       UI.log(`🎡 ${p.name}：${n}が出た`);
@@ -181,6 +181,12 @@ const Game = (() => {
           UI.log(`🔥 ${p.name}のビリの意地！${n}を選んだ`);
         }
       }
+    }
+
+    // ✈️ パイロット：移動の出目+1（毎ターン1マス多く進む）
+    if (hasJob(p, "パイロット")) {
+      n += 1;
+      UI.log(`✈️ ${p.name}はパイロット！出目+1で${n}マス進む`);
     }
 
     const res = await moveSteps(p, n, 0);
@@ -306,12 +312,7 @@ const Game = (() => {
         await UI.eventModal(sq, p);
         if (depth >= 5) break;       // 移動マスの連鎖は5回まで
         if (sq.steps > 0) {
-          let steps = sq.steps;
-          if (hasJob(p, "パイロット")) {
-            steps *= 2;
-            await UI.modal({ title: "✈️ パイロットの本領！", body: `ひとっ飛びで歩数2倍！ ${sq.steps}マス → ${steps}マス進む！` });
-          }
-          const r = await moveSteps(p, steps, depth + 1);
+          const r = await moveSteps(p, sq.steps, depth + 1);
           if (r === "goal") return;
         } else {
           if (hasJob(p, "宇宙飛行士")) {
@@ -438,7 +439,7 @@ const Game = (() => {
     switch (cid) {
       case "turbo":
         p.forceTen = true;
-        await UI.modal({ title: "🚀 ターボチケット", body: "次のルーレットは必ず10！ぶっ飛ばせ！" });
+        await UI.modal({ title: "🚀 ターボチケット", body: "次のルーレットは必ず8！ぶっ飛ばせ！" });
         break;
       case "sabotage": {
         const ts = st.players.filter(o => o.id !== p.id && !o.goaled);
@@ -1162,8 +1163,8 @@ const Game = (() => {
     }
     p.houses.forEach(hi => {
       const hs = HOUSES[hi];
-      const r = 1 + Math.floor(Math.random() * 10);
-      const m = r <= 3 ? 0.5 : r <= 7 ? 1.5 : 3;
+      const r = 1 + Math.floor(Math.random() * 8);
+      const m = r <= 2 ? 0.5 : r <= 6 ? 1.5 : 3;
       const v = Math.round(hs.p * m / 10000) * 10000;
       lines.push([`${hs.e} ${hs.n} 売却（ルーレット${r}→×${m}）`, v]); total += v;
     });
