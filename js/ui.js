@@ -25,6 +25,8 @@ const UI = (() => {
     });
     const peek = document.getElementById("btn-map-peek");
     if (peek) peek.hidden = (name !== "game");
+    const hud = document.getElementById("money-hud");
+    if (hud && name !== "game") hud.hidden = true;
     if (name !== "game") document.body.classList.remove("map-peek");
     document.body.classList.remove("drawer-open");
   }
@@ -62,26 +64,39 @@ const UI = (() => {
   }
 
   // マスに止まったときのイベント表示（増減額を大きく表示）
-  function evAmount(sq) {
+  // override（数値）が渡されたら実際に適用した増減額を優先表示する
+  function evAmount(sq, override) {
     let a = null, note = "";
-    if (sq.t === "money") a = sq.amount;
+    if (override !== undefined) {
+      a = override;
+      if (sq.t === "accident") note = "（生命保険があればセーフ）";
+      else if (sq.t === "housedmg") note = "（火災保険でセーフ／家なしなら-¥100,000）";
+      else if (sq.t === "gift") note = "× ほかの全員からもらう！";
+    } else if (sq.t === "money") a = sq.amount;
     else if (sq.t === "accident") { a = -sq.amount; note = "（生命保険があればセーフ）"; }
     else if (sq.t === "housedmg") { a = -sq.amount; note = "（火災保険でセーフ／家なしなら-¥100,000）"; }
     else if (sq.t === "gift") { a = sq.amount; note = "× ほかの全員からもらう！"; }
     else if (sq.t === "finalbet") { a = sq.stake; note = "を賭けた大勝負！"; }
-    if (a == null) return null;
+    if (a == null || a === 0) return null;
     return h("div", { class: "ev-amt " + (a > 0 ? "plus" : "minus") },
       (a > 0 ? "+" : "") + fmt(a),
       note ? h("span", { class: "ev-amt-note" }, note) : null,
     );
   }
 
-  function eventModal(sq, p, extra) {
+  // delta を明示で渡すと「実際の増減額＋結果の総額」を表示する（金額が確定済みのとき用）
+  function eventModal(sq, p, extra, delta) {
     Sound.play("land");
     const body = [h("div", { class: "ev-text" }, sq.text)];
-    const amt = evAmount(sq);
+    const amt = evAmount(sq, delta);
     if (amt) body.push(amt);
     if (extra) body.push(h("div", { class: "ev-note" }, extra));
+    if (p && delta !== undefined) {
+      body.push(h("div", { class: "ev-total" },
+        "所持金 → ", h("b", {}, fmt(p.money)),
+        p.notes ? h("span", { class: "ev-total-note" }, `　🧾手形×${p.notes}`) : null,
+      ));
+    }
     return modal({
       title: [Icons.el(Icons.squareKey(sq), 30), " " + sq.label],
       body,
@@ -229,6 +244,26 @@ const UI = (() => {
     ranked.forEach((p, idx) => { rankOf[p.id] = idx + 1; });
     st.players.forEach((p, i) => updatePanel(ppCache.rows[i], p, st, i, rankOf[p.id]));
     $("#stock-ticker").textContent = `📈 現在の株価 ${fmt(st.stockPrice)}`;
+    renderHud(st);
+  }
+
+  // 盤面に常時表示する所持金HUD（ドロワーを開かなくても現手番の総額が見える）
+  function renderHud(st) {
+    const el = $("#money-hud");
+    if (!el) return;
+    const p = st && st.players && st.players[st.cur];
+    if (!p) { el.hidden = true; return; }
+    clear(el);
+    const stars = "★".repeat(Math.max(0, (p.jobLevel || 1) - 1));
+    const parts = [
+      h("span", { class: "mh-dot", style: `background:${p.color}` }, p.id + 1),
+      h("span", { class: "mh-name" }, p.name),
+      h("span", { class: "mh-money" }, fmt(p.money)),
+    ];
+    if (p.notes) parts.push(h("span", { class: "mh-note" }, `🧾×${p.notes}`));
+    if (p.job) parts.push(h("span", { class: "mh-job" }, p.job.e + stars));
+    el.append(...parts);
+    el.hidden = false;
   }
 
   return { showScreen, modal, eventModal, handoff, preroll, toast, log, renderHeader, renderSidebar, moveBanner };

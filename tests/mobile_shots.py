@@ -68,6 +68,27 @@ def run():
         page.wait_for_timeout(500)
         page.screenshot(path=str(SHOTS / "m6_roulette.png"))
 
+        # 回して着地 → イベントモーダル（増減額＋総額）を撮る
+        if page.is_visible("#overlay-roulette"):
+            b = page.query_selector("#btn-do-spin")
+            if b and not b.is_disabled():
+                b.click()
+        captured = False
+        for _ in range(12):
+            page.wait_for_timeout(700)
+            if page.is_visible("#overlay-modal"):
+                page.screenshot(path=str(SHOTS / "m7_event.png"))
+                captured = True
+                break
+            if page.is_visible("#overlay-roulette"):
+                b = page.query_selector("#btn-do-spin")
+                if b and not b.is_disabled():
+                    b.click()
+            elif page.is_visible("#overlay-handoff"):
+                page.click("#btn-handoff-go")
+            elif page.is_visible("#action-bar"):
+                page.click("#btn-spin")
+        print("event modal captured:", captured)
         print("JS ERRORS:", "none" if not errors else errors[:10])
         browser.close()
 

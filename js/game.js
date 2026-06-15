@@ -71,6 +71,7 @@ const Game = (() => {
     a += maneki * 100000;
     gain(p, a);
     UI.log(`💴 ${p.name}の給料日 +${fmt(a)}${p.job ? "" : "（無職なのでバイト代）"}${mult > 1 ? "✨ダブル給料！" : ""}${maneki ? "🐱招き猫の御利益！" : ""}`);
+    return a;
   }
 
   // 総資産が全員の中で唯一の最下位か（ビリの意地の条件）
@@ -213,21 +214,26 @@ const Game = (() => {
     }
 
     // ✈️ パイロット：移動の出目+1（毎ターン1マス多く進む。ターボの確定8には乗らない）
+    let pilotFrom = null;
     if (!usedTurbo && hasJob(p, "パイロット")) {
+      pilotFrom = n;
       n += 1;
-      UI.log(`✈️ ${p.name}はパイロット！出目+1で${n}マス進む`);
+      UI.log(`✈️ ${p.name}はパイロット！出目+1（${pilotFrom}→${n}）で${n}マス進む`);
     }
 
-    const res = await moveSteps(p, n, 0);
+    const res = await moveSteps(p, n, 0, pilotFrom);
     if (res === "goal") return;
     await resolveSquare(p, SQUARES[p.pos], 0);
   }
 
   // ---------- 移動 ----------
-  async function moveSteps(p, n, depth) {
+  async function moveSteps(p, n, depth, pilotFrom) {
     const banner = depth === 0;
     let taken = 0, stopped = false;
-    if (banner) UI.moveBanner(`🎡 ${p.name}：出目 ${n}！`);
+    // パイロットの出目+1は混乱しやすいので、移動バナーに「出目X ＋✈️1 ＝ Nマス」と明示
+    if (banner) UI.moveBanner(pilotFrom != null
+      ? `🎡 ${p.name}：出目 ${pilotFrom} ＋✈️1 ＝ ${n}マス！`
+      : `🎡 ${p.name}：出目 ${n}！`);
     for (let i = 0; i < n; i++) {
       const cur = SQUARES[p.pos];
       if (cur.t === "goal") break;
@@ -324,9 +330,8 @@ const Game = (() => {
       case "money": {
         if (sq.childCost && p.children < 1) {
           Sound.play("click");
-          Fx.bubble(Board.tokenScreenPos(p), sq.label, "子供がいないのでセーフ！", true);
           UI.log(`👶 ${p.name}は子供がいないので「${sq.label}」の出費なし`);
-          await wait(1200);
+          await UI.eventModal(sq, p, "👶 子供がいないので出費なし！（セーフ）", 0);
           break;
         }
         let a = sq.amount, note = "";
@@ -334,19 +339,11 @@ const Game = (() => {
           a = -Math.round(-a / 2 / 10000) * 10000;
           note = `⚖️ 弁護士の腕で被害半減！（${fmt(a)}）`;
         }
-        // 小さい金額はモーダルなしの吹き出しでテンポよく
-        if (Math.abs(a) <= 300000 && !note) {
-          Sound.play("land");
-          Fx.bubble(Board.tokenScreenPos(p), sq.label, `${a > 0 ? "+" : ""}${fmt(a)}`, a > 0);
-          applyMoney(p, a);
-          UI.log(`${squareIcon(sq)} ${p.name} ${sq.label} ${fmt(a)}`);
-          await wait(1400);
-        } else {
-          if (a >= 5000000) { Fx.cutin("💰", "大金GET！！"); await wait(1100); }
-          await UI.eventModal(sq, p, note);
-          applyMoney(p, a);
-          UI.log(`${squareIcon(sq)} ${p.name} ${sq.label} ${fmt(a)}`);
-        }
+        if (a >= 5000000) { Fx.cutin("💰", "大金GET！！"); await wait(1100); }
+        // 先に金額を反映してから、増減額＋結果の総額をモーダルで表示（見逃し防止）
+        applyMoney(p, a);
+        UI.log(`${squareIcon(sq)} ${p.name} ${sq.label} ${fmt(a)}`);
+        await UI.eventModal(sq, p, note, a);
         if (a < 0 && hasJob(p, "ユーチューバー")) {
           gain(p, 200000);
           UI.log(`📹 ${p.name}「動画のネタになった」 +${fmt(200000)}`);
@@ -356,8 +353,8 @@ const Game = (() => {
 
       case "payday": {
         const m = hasJob(p, "会社員") ? 3 : 2;
-        await UI.eventModal(sq, p, m === 3 ? "💼 会社員の本領！止まったから給料3倍！！" : "✨ 止まったからダブル給料！！");
-        paySalary(p, m);
+        const a = paySalary(p, m);
+        await UI.eventModal(sq, p, m === 3 ? "💼 会社員の本領！止まったから給料3倍！！" : "✨ 止まったからダブル給料！！", a);
         break;
       }
 
