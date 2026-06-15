@@ -63,7 +63,6 @@ const Roulette = (() => {
     needle.appendChild(sv("circle", { r: 8, fill: "#e8590c", stroke: "#5b4636", "stroke-width": 3 }));
     needleG.appendChild(needle);
     svg.appendChild(needleG);
-    enableDrag();
   }
 
   function applyNeedle() {
@@ -93,11 +92,6 @@ const Roulette = (() => {
     })();
   }
 
-  // いま針の下にあるセクター
-  function sectorAtPointer() {
-    return Math.floor((((-rotation) % 360) + 360) % 360 / SEG) + 1;
-  }
-
   // ---- ボタン回し：狙った出目に向かってイージング回転 ----
   function spinTo(k) {
     busy = true;
@@ -114,57 +108,6 @@ const Roulette = (() => {
       if (t < 1) requestAnimationFrame(frame);
       else finish(k);
     })(t0);
-  }
-
-  // ---- 盤を指で弾く ----
-  function enableDrag() {
-    let drag = null;
-    const angleOf = e => {
-      const r = svg.getBoundingClientRect();
-      // viewBox(-130,-160,260,300) → 盤中心(0,0)は縦方向 160/300 の位置
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height * (160 / 300);
-      return Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
-    };
-    svg.onpointerdown = e => {
-      if (busy || forced) return;
-      drag = { a: angleOf(e), hist: [{ t: performance.now(), rot: rotation }] };
-      svg.setPointerCapture(e.pointerId);
-    };
-    svg.onpointermove = e => {
-      if (!drag) return;
-      const a = angleOf(e);
-      let d = a - drag.a;
-      if (d > 180) d -= 360; if (d < -180) d += 360;
-      drag.a = a;
-      rotation += d;
-      applyRot(d);
-      drag.hist.push({ t: performance.now(), rot: rotation });
-      if (drag.hist.length > 12) drag.hist.shift();
-    };
-    svg.onpointerup = svg.onpointercancel = () => {
-      if (!drag) return;
-      const now = performance.now();
-      const h = drag.hist.filter(s => now - s.t < 180);   // 直近の動きだけで速度を出す
-      drag = null;
-      if (h.length < 2) { relaxNeedle(); return; }
-      const dt = h[h.length - 1].t - h[0].t;
-      let v = dt > 0 ? (h[h.length - 1].rot - h[0].rot) / dt : 0;   // deg/ms
-      if (Math.abs(v) < 0.12) { relaxNeedle(); return; }            // 弱すぎたらノーカン
-      v = Math.max(-1.5, Math.min(1.5, v * 1.35));                  // 弾き感ブースト
-      busy = true;
-      Sound.play("spin");
-      let last = performance.now();
-      (function frame(nowF) {
-        const dms = Math.min(40, nowF - last);
-        last = nowF;
-        rotation += v * dms;
-        v *= Math.pow(0.9935, dms);
-        applyRot(v);
-        if (Math.abs(v) > 0.012) requestAnimationFrame(frame);
-        else finish(sectorAtPointer());
-      })(last);
-    };
   }
 
   function finish(k) {
@@ -196,7 +139,7 @@ const Roulette = (() => {
       document.getElementById("roulette-label").textContent = label || "ルーレット";
       out.hidden = true;
       btn.disabled = false;
-      hint.textContent = forced ? "🚀 ターボ発動中！ボタンで回そう" : "盤を指で弾いてもOK！";
+      hint.textContent = forced ? "🚀 ターボ発動中！ボタンで回そう" : "ボタンを押して回そう！";
       ov.hidden = false;
       btn.onclick = () => {
         if (busy) return;

@@ -80,6 +80,12 @@
     $("#btn-sound").textContent = on ? "♪ ON" : "♪ OFF";
   };
 
+  // スマホ：サイドバーのドロワー開閉
+  $("#btn-drawer").onclick = () => { Sound.play("click"); document.body.classList.toggle("drawer-open"); };
+  $("#drawer-backdrop").onclick = () => document.body.classList.remove("drawer-open");
+  // ルーレットを回したらドロワーは閉じる（盤面に集中）
+  $("#btn-spin").addEventListener("click", () => document.body.classList.remove("drawer-open"));
+
   $("#btn-quit").onclick = () => {
     if (confirm("ゲームを中断してタイトルへ戻る？（このターンの頭から再開できます）")) location.reload();
   };

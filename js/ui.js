@@ -26,6 +26,7 @@ const UI = (() => {
     const peek = document.getElementById("btn-map-peek");
     if (peek) peek.hidden = (name !== "game");
     if (name !== "game") document.body.classList.remove("map-peek");
+    document.body.classList.remove("drawer-open");
   }
 
   // title/body: 文字列 / Node / その配列。文字列内の改行はそのまま表示される（CSSのpre-line）
