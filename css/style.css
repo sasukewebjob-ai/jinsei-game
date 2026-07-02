@@ -68,7 +68,7 @@ body {
   opacity: .8;
 }
 .t-car {
-  position: absolute; bottom: 16px; font-size: 56px;
+  position: absolute; bottom: 16px; line-height: 0;
   animation: t-carrun 11s linear infinite;
   filter: drop-shadow(0 4px 3px rgba(0,0,0,.3));
 }

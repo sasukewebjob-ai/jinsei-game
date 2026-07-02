@@ -166,6 +166,198 @@ const Scenery = (() => {
     return g;
   }
 
+  // ---------- 手描きSVGミニスプライト（絵文字の置き換え） ----------
+  function flowerTulip(x, y, s, color = "#e0635f") {
+    const g = grp(x, y, s);
+    g.append(
+      el("line", { x1: 0, y1: 0, x2: 0, y2: -12, stroke: "#3fa34d", "stroke-width": 2.5 }),
+      path("M0,-6 Q-7,-8 -8,-14 Q-2,-13 0,-8 Z", "#57bb63"),
+      path("M0,-6 Q7,-8 8,-14 Q2,-13 0,-8 Z", "#57bb63"),
+      path("M-6,-16 L-6,-24 Q-3,-20 0,-24 Q3,-20 6,-24 L6,-16 Q6,-10 0,-10 Q-6,-10 -6,-16 Z", color, { stroke: "rgba(0,0,0,.15)", "stroke-width": 1.5 }),
+    );
+    return g;
+  }
+  function flowerSun(x, y, s) {
+    const g = grp(x, y, s);
+    g.append(el("line", { x1: 0, y1: 0, x2: 0, y2: -14, stroke: "#3fa34d", "stroke-width": 2.5 }),
+      path("M0,-8 Q-8,-10 -9,-16 Q-2,-15 0,-9 Z", "#57bb63"));
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4;
+      g.append(ell(Math.cos(a) * 7, -20 + Math.sin(a) * 7, 4.5, 3, "#ffd23e", { transform: `rotate(${i * 45} ${Math.cos(a) * 7} ${-20 + Math.sin(a) * 7})` }));
+    }
+    g.append(circ(0, -20, 4.5, "#8a5a33"));
+    return g;
+  }
+  function busStop(x, y, s) {
+    const g = grp(x, y, s);
+    g.append(
+      ell(0, 2, 10, 3, "rgba(20,60,20,.22)"),
+      rect(-1.5, -42, 3, 42, 1, "#5a5a6a"),
+      rect(-15, -60, 30, 20, 4, "#2e9be6", { stroke: "#1d6fa8", "stroke-width": 2 }),
+      rect(-10, -56, 20, 9, 2, "#fff"),
+      circ(-5, -45.5, 2, "#2b2b33"), circ(5, -45.5, 2, "#2b2b33"),
+    );
+    return g;
+  }
+  function chapel(x, y, s) {
+    const g = grp(x, y, s);
+    g.append(
+      ell(0, 3, 20, 5, "rgba(20,60,20,.22)"),
+      rect(-16, -26, 32, 26, 2, "#fff", { stroke: "#d8c9d0", "stroke-width": 2 }),
+      path("M-20,-26 L0,-42 L20,-26 Z", "#f08bb4"),
+      rect(-5, -14, 10, 14, 5, "#c9a0b8"),
+      path("M0,-56 q-4,-6 -8,-2 q-3,3 8,10 q11,-7 8,-10 q-4,-4 -8,2 Z", "#e0435f"),
+      el("line", { x1: 0, y1: -48, x2: 0, y2: -42, stroke: "#b89aa8", "stroke-width": 2 }),
+    );
+    return g;
+  }
+  function hospital(x, y, s) {
+    const g = grp(x, y, s);
+    g.append(
+      ell(0, 3, 24, 6, "rgba(20,60,20,.22)"),
+      rect(-21, -36, 42, 36, 2, "#f4f4f8", { stroke: "#c0c8d8", "stroke-width": 2 }),
+      rect(-21, -36, 42, 6, 2, "#cfd8e8"),
+      rect(-4, -26, 8, 18, 1, "#e0432e"), rect(-9, -21, 18, 8, 1, "#e0432e"),
+      rect(-16, -12, 8, 12, 1, "#aadcf5"), rect(8, -12, 8, 12, 1, "#aadcf5"),
+    );
+    return g;
+  }
+  function fireTruck(x, y, s) {
+    const g = grp(x, y, s);
+    g.append(
+      ell(0, 5, 22, 4, "rgba(20,60,20,.22)"),
+      rect(-20, -16, 40, 16, 3, "#e0432e", { stroke: "#a82a1e", "stroke-width": 2 }),
+      rect(8, -24, 12, 10, 2, "#e0432e", { stroke: "#a82a1e", "stroke-width": 2 }),
+      rect(10.5, -21.5, 7, 6, 1, "#aadcf5"),
+      el("line", { x1: -18, y1: -18, x2: 4, y2: -18, stroke: "#f4f2ea", "stroke-width": 3 }),
+      el("line", { x1: -15, y1: -21, x2: 1, y2: -21, stroke: "#f4f2ea", "stroke-width": 3 }),
+      circ(-11, 0, 5.5, "#2b2b33"), circ(11, 0, 5.5, "#2b2b33"),
+      circ(-11, 0, 2.2, "#ddd"), circ(11, 0, 2.2, "#ddd"),
+    );
+    return g;
+  }
+  function golf(x, y, s) {
+    const g = grp(x, y, s);
+    g.append(
+      ell(0, 0, 16, 5, "#57bb63"),
+      ell(6, 0, 3.2, 1.6, "#3a3a3a"),
+      el("line", { x1: 6, y1: 0, x2: 6, y2: -30, stroke: "#e8e0d0", "stroke-width": 2.5 }),
+      path("M6,-30 L-10,-24 L6,-18 Z", "#e0432e"),
+    );
+    return g;
+  }
+  function bonsai(x, y, s) {
+    const g = grp(x, y, s);
+    g.append(
+      path("M-12,0 L12,0 L8,-8 L-8,-8 Z", "#c96f4a", { stroke: "#a85a38", "stroke-width": 1.5 }),
+      path("M0,-8 Q-2,-16 4,-20", "none", { stroke: "#8a5a33", "stroke-width": 3, "stroke-linecap": "round" }),
+      circ(5, -23, 6, "#3fa34d"), circ(-3, -19, 5, "#57bb63"), circ(10, -18, 4, "#57bb63"),
+    );
+    return g;
+  }
+  function bank(x, y, s) {
+    const g = grp(x, y, s);
+    g.append(
+      ell(0, 3, 26, 6, "rgba(20,60,20,.22)"),
+      rect(-24, -4, 48, 5, 1, "#cfc4ae"),
+      rect(-20, -26, 40, 22, 1, "#efe6d2", { stroke: "#c9b89a", "stroke-width": 2 }),
+      path("M-24,-26 L0,-38 L24,-26 Z", "#e0d4ba", { stroke: "#c9b89a", "stroke-width": 2 }),
+    );
+    [-13, -4.5, 4.5, 13].forEach(cx => g.append(rect(cx - 2.5, -22, 5, 18, 1, "#d8ccb4")));
+    return g;
+  }
+  function trophy(x, y, s) {
+    const g = grp(x, y, s);
+    g.append(
+      path("M-10,-30 L10,-30 L10,-22 Q10,-12 0,-10 Q-10,-12 -10,-22 Z", "#f4b630", { stroke: "#c98a1e", "stroke-width": 2 }),
+      path("M-10,-28 Q-17,-27 -15,-20 Q-13,-16 -9,-17", "none", { stroke: "#c98a1e", "stroke-width": 2.5 }),
+      path("M10,-28 Q17,-27 15,-20 Q13,-16 9,-17", "none", { stroke: "#c98a1e", "stroke-width": 2.5 }),
+      rect(-2.5, -10, 5, 6, 1, "#c98a1e"),
+      rect(-8, -4, 16, 4, 1, "#8a5a33"),
+      ell(-4, -25, 2, 3.5, "rgba(255,255,255,.55)"),
+    );
+    return g;
+  }
+  function moneyBag(x, y, s) {
+    const g = grp(x, y, s);
+    g.append(
+      path("M-5,-24 Q0,-20 5,-24 L8,-19 Q16,-12 14,-4 Q12,2 0,2 Q-12,2 -14,-4 Q-16,-12 -8,-19 Z", "#c9a06a", { stroke: "#9a7444", "stroke-width": 2 }),
+      rect(-6, -26, 12, 4, 2, "#9a7444"),
+      txt("¥", { y: -5, "font-size": 13, "font-weight": 900, fill: "#6a4a1a" }),
+    );
+    return g;
+  }
+  function crown(x, y, s) {
+    const g = grp(x, y, s);
+    g.append(
+      path("M-14,0 L-15,-14 L-7,-6 L0,-17 L7,-6 L15,-14 L14,0 Z", "#f4c81e", { stroke: "#c99a1e", "stroke-width": 2 }),
+      circ(-8, -3.5, 1.8, "#e0435f"), circ(0, -4.5, 1.8, "#2e9be6"), circ(8, -3.5, 1.8, "#57bb63"),
+    );
+    return g;
+  }
+  function riceGrass(x, y, s) {
+    const g = grp(x, y, s);
+    [[-6, -1], [0, 0], [6, -1]].forEach(([dx, k]) => {
+      g.append(path(`M${dx},0 Q${dx + 2},-10 ${dx + 4 + k},-18`, "none", { stroke: "#caa53a", "stroke-width": 2, "stroke-linecap": "round" }));
+      [[3, -14], [4.5, -16.5], [2, -11]].forEach(([ex, ey]) => g.append(ell(dx + ex + k, ey, 2, 1.2, "#e8c86a")));
+    });
+    return g;
+  }
+  function steam(x, y, s, color = "#e0635f") {
+    const g = grp(x, y, s);
+    [-8, 0, 8].forEach(dx => g.append(
+      path(`M${dx},0 q-4,-6 0,-11 q4,-5 0,-11`, "none", { stroke: color, "stroke-width": 3, "stroke-linecap": "round", opacity: .85 })));
+    return g;
+  }
+  function duckSprite(x, y, s) {
+    const g = grp(x, y, s);
+    g.append(
+      ell(0, 0, 10, 6.5, "#ffd23e", { stroke: "#d8a51e", "stroke-width": 1.5 }),
+      path("M2,-2 Q10,-4 8,1 Q4,3 0,1 Z", "#f4c020"),
+      circ(-7, -7, 4.5, "#ffd23e", { stroke: "#d8a51e", "stroke-width": 1.5 }),
+      path("M-11,-7 L-16,-5.5 L-11,-4.5 Z", "#f4841e"),
+      circ(-8, -8, 1, "#2b2b33"),
+    );
+    return g;
+  }
+  const dogSprite = () => {
+    const g = grp(0, 0, 1);
+    g.append(
+      ell(0, -7, 11, 6.5, "#c9a06a", { stroke: "#9a7444", "stroke-width": 1.5 }),
+      circ(10, -13, 5.5, "#c9a06a", { stroke: "#9a7444", "stroke-width": 1.5 }),
+      path("M6,-17 L4,-23 L9,-19 Z", "#9a7444"), path("M13,-18 L15,-23 L16,-17 Z", "#9a7444"),
+      path("M-10,-10 Q-16,-16 -12,-18", "none", { stroke: "#9a7444", "stroke-width": 2.5, "stroke-linecap": "round" }),
+      rect(-7, -3, 3, 4, 1, "#b8895a"), rect(4, -3, 3, 4, 1, "#b8895a"),
+      circ(12, -14, 1, "#2b2b33"), circ(15.5, -11.5, 1.2, "#3a3a3a"),
+    );
+    return g;
+  };
+  const catSprite = () => {
+    const g = grp(0, 0, 1);
+    g.append(
+      ell(0, -6, 10, 6, "#9aa0ab", { stroke: "#6a707b", "stroke-width": 1.5 }),
+      circ(9, -12, 5, "#9aa0ab", { stroke: "#6a707b", "stroke-width": 1.5 }),
+      path("M5,-15 L4,-21 L9,-17 Z", "#9aa0ab", { stroke: "#6a707b", "stroke-width": 1.2 }),
+      path("M11,-17 L14,-21 L14.5,-15 Z", "#9aa0ab", { stroke: "#6a707b", "stroke-width": 1.2 }),
+      path("M-9,-8 Q-16,-10 -15,-18", "none", { stroke: "#6a707b", "stroke-width": 2.5, "stroke-linecap": "round" }),
+      rect(-6, -2.5, 3, 3.5, 1, "#8a909b"), rect(3, -2.5, 3, 3.5, 1, "#8a909b"),
+      circ(8, -13, 1, "#2b2b33"), circ(11.5, -13, 1, "#2b2b33"),
+    );
+    return g;
+  };
+  const personSprite = () => {
+    const g = grp(0, 0, 1);
+    g.append(
+      circ(0, -28, 5, "#f2c9a0"),
+      path("M-5,-33 Q0,-38 5,-33 L5,-31 L-5,-31 Z", "#3a3a44"),
+      path("M-6,-22 L6,-22 L4,-8 L-4,-8 Z", "#3a3a44"),
+      rect(-4, -8, 3, 8, 1, "#2b2b33"), rect(1, -8, 3, 8, 1, "#2b2b33"),
+      rect(6, -12, 7, 6, 1, "#8a5a33"),
+      el("line", { x1: 5, y1: -20, x2: 8, y2: -12, stroke: "#3a3a44", "stroke-width": 2.5 }),
+    );
+    return g;
+  };
+
   function mountains(x, y, s, near = "#7da6c9", far = "#a9c4dd") {
     const g = grp(x, y, s);
     g.append(
@@ -194,7 +386,7 @@ const Scenery = (() => {
       ell(-24, -8, 30, 9, "#b9e4fb"),
       ell(40, 10, 16, 5, "#b9e4fb", { opacity: .8 }),
     );
-    if (withDuck) g.append(txt("🦆", { x: 20, y: -8, "font-size": 22 }));
+    if (withDuck) g.append(duckSprite(20, -8, 1.1));
     return g;
   }
 
@@ -203,7 +395,7 @@ const Scenery = (() => {
     g.append(
       ell(0, 0, 40, 15, "#9fd8ef", { stroke: "#76b9d8", "stroke-width": 3 }),
       circ(-46, 2, 8, "#9a9aa5"), circ(46, 0, 10, "#8a8a95"),
-      txt("♨️", { y: -18, "font-size": 26 }),
+      steam(0, -14, 1),
     );
     return g;
   }
@@ -240,10 +432,6 @@ const Scenery = (() => {
     return g;
   }
 
-  function emoji(x, y, t, size, cls) {
-    return txt(t, Object.assign({ x, y, "font-size": size }, cls ? { class: cls } : {}));
-  }
-
   // ---------- 章タイトル看板 ----------
   function signboard(x, y, s, small, big) {
     const g = grp(x, y, s);
@@ -257,9 +445,10 @@ const Scenery = (() => {
   }
 
   // ---------- 動く住人 ----------
-  function walker(x, y, t, size, dur) {
+  function walker(x, y, builder, dur) {
     const g = grp(x, y, 1);
-    const e = txt(t, { "font-size": size, class: "sc-walker" });
+    const e = builder();
+    e.classList.add("sc-walker");
     e.style.animationDuration = dur + "s";
     g.append(e);
     return g;
@@ -380,7 +569,7 @@ const Scenery = (() => {
     // 9 タワマン最上階
     () => { const g = grp(0, 0, 1); g.append(rect(-16, -84, 32, 84, 3, "#9fb0c9", { stroke: "#7a8aa8", "stroke-width": 2 })); for (let r = 0; r < 6; r++) g.append(rect(-11, -78 + r * 13, 22, 7, 1, r === 0 ? "#ffe14d" : "#d8e4f0")); g.append(el("line", { x1: 0, y1: -84, x2: 0, y2: -98, stroke: "#7a8aa8", "stroke-width": 2.5 }), circ(0, -99, 2.5, "#e0635f")); return g; },
     // 10 温泉付き豪邸
-    () => { const g = grp(0, 0, 1); g.append(rect(-32, -26, 64, 26, 3, "#f6e9d0", { stroke: "#c9b89a", "stroke-width": 2 }), path("M-38,-26 Q0,-46 38,-26 Z", "#8a4a3a"), rect(-22, -18, 12, 10, 1, "#ffe9a8"), rect(10, -18, 12, 10, 1, "#aadcf5"), rect(-5, -14, 10, 14, 1, "#7a5a3a"), txt("♨️", { x: 30, y: -34, "font-size": 16 })); return g; },
+    () => { const g = grp(0, 0, 1); g.append(rect(-32, -26, 64, 26, 3, "#f6e9d0", { stroke: "#c9b89a", "stroke-width": 2 }), path("M-38,-26 Q0,-46 38,-26 Z", "#8a4a3a"), rect(-22, -18, 12, 10, 1, "#ffe9a8"), rect(10, -18, 12, 10, 1, "#aadcf5"), rect(-5, -14, 10, 14, 1, "#7a5a3a"), steam(32, -32, .55)); return g; },
     // 11 無人島のヴィラ
     () => { const g = grp(0, 0, 1); g.append(ell(0, 2, 48, 13, "#7ec8f5", { opacity: .85 }), ell(0, 0, 32, 9, "#f4e2b8"), path("M-16,-2 L-4,-20 L8,-2 Z", "#c9a06a"), rect(-7, -8, 7, 8, 1, "#8a5a33"), palm(18, -2, .85)); return g; },
     // 12 お城
@@ -492,7 +681,7 @@ const Scenery = (() => {
     d.append(
       // スタート＆公園
       startArch(230, 138, .9),
-      emoji(420, 300, "🌷", 20), emoji(600, 290, "🌻", 20), emoji(180, 320, "🌷", 18),
+      flowerTulip(420, 300, 1), flowerSun(600, 292, 1), flowerTulip(180, 320, .9, "#f4b630"),
       // 大学ルートの学び舎（B1ループの内側）
       school(1560, 350, .85),
       sakura(1380, 330, .8), sakura(1720, 340, .75),
@@ -500,31 +689,31 @@ const Scenery = (() => {
       office(1240, 560, .55, "#9fb6c9"), office(1330, 555, .5, "#c9a9b0"),
       // 青春の街（C東側の内側ポケット）
       office(2050, 580, .45, "#cbb59b"),
-      emoji(2160, 572, "💒", 26),
+      chapel(2160, 578, .7),
       // 左上の住宅地
-      emoji(620, 400, "🚏", 24),
+      busStop(620, 405, .9),
       // ギャンブル横丁（D2ループまわり）
       neonSign(700, 690, .55),
       dice(540, 720, .7, -15), playCards(830, 735, .8),
       sparkle(640, 660, .9), sparkle(880, 700, .8), sparkle(500, 900, .8),
       lamp(180, 1020, .8),
       // 波乱の40代（Eの下）
-      emoji(430, 1120, "🏥", 30), emoji(760, 1130, "🚒", 26),
+      hospital(430, 1125, .95), fireTruck(760, 1130, .95),
       // 中央西の街（ルーレット左）
-      office(1120, 1520, .6, "#b9a9c9"), emoji(1210, 1560, "⛳", 26),
+      office(1120, 1520, .6, "#b9a9c9"), golf(1210, 1565, 1),
       // 熟年の里（右コリドー内側）
       torii(2380, 1320, 1),
       onsen(2500, 1560, .95),
-      emoji(2250, 1250, "🪴", 24), emoji(2600, 1180, "🏦", 26),
+      bonsai(2250, 1255, 1), bank(2600, 1185, .9),
       // 黄金ロード（下辺の内側）
       sparkle(1200, 1990, 1), sparkle(1800, 1960, .9), sparkle(2300, 2000, 1.1), sparkle(2600, 1930, .8),
-      emoji(1400, 1975, "🏆", 30), emoji(2050, 1980, "💰", 26), emoji(2450, 1940, "👑", 24),
+      trophy(1400, 1980, 1), moneyBag(2050, 1985, 1), crown(2450, 1945, 1),
       slot(2470, 1965, .8),
       lamp(1100, 2000, .8), lamp(2200, 1950, .8),
       // フィナーレ＆ゴール
       mountains(430, 1900, .9),
       palace(2880, 2010, .95),
-      emoji(2680, 1955, "🌾", 20),
+      riceGrass(2680, 1958, 1),
     );
 
     // --- 章タイトル看板 ---
@@ -541,9 +730,9 @@ const Scenery = (() => {
 
     // --- 動く住人 ---
     d.append(
-      walker(560, 1470, "🐕", 22, 13),
-      walker(1850, 1990, "🐈", 20, 17),
-      walker(760, 940, "🕴️", 24, 21),
+      walker(560, 1470, dogSprite, 13),
+      walker(1850, 1990, catSprite, 17),
+      walker(760, 940, personSprite, 21),
       birds(300, 80, 1, "#5a7a9a", 34),
       birds(1500, 1150, .8, "#8a5a4a", 44),
     );
