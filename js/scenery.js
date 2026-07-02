@@ -1,5 +1,5 @@
-// 盤面の風景レイヤー：エリアごとの背景帯と装飾（木・建物・観覧車・ネオン街・夕焼けの山…）
-// Board.build() から Scenery.render(parent) で呼ばれる。すべてDOM APIで構築（innerHTML不使用）
+// 盤面の風景レイヤー（本家風）：全面芝生・モコモコ樹木・立体の丘・池・建物・中央ルーレット
+// Board.build() から Scenery.render(parent) で呼ばれる。座標系は盤面そのまま（3000x2300）
 
 const Scenery = (() => {
   const NS = "http://www.w3.org/2000/svg";
@@ -26,62 +26,37 @@ const Scenery = (() => {
   const path = (d, fill, extra) => el("path", Object.assign({ d, fill }, extra || {}));
 
   // ---------- 装飾パーツ ----------
-  function tree(x, y, s, leaf = "#3fa34d", leaf2 = "#57bb63") {
+  // 本家風のモコモコの木（影付き・丸3つ）
+  function tree(x, y, s, leaf = "#2f8f3f", leaf2 = "#43a34f") {
     const g = grp(x, y, s);
     g.append(
+      ell(2, 4, 20, 7, "rgba(20,60,20,.25)"),
       rect(-4, -16, 8, 18, 3, "#8a5a33"),
-      circ(0, -30, 16, leaf),
-      circ(-12, -20, 11, leaf2),
-      circ(12, -20, 11, leaf2),
+      circ(0, -32, 17, leaf),
+      circ(-13, -20, 12, leaf2),
+      circ(13, -20, 12, leaf2),
+      circ(-4, -38, 8, leaf2),
     );
     return g;
   }
   const sakura = (x, y, s) => tree(x, y, s, "#f49ac1", "#f7b8d4");
 
-  function cloud(x, y, s) {
-    const g = grp(x, y, s, "sc-cloud");
-    g.append(
-      ell(0, 0, 30, 15, "#ffffff", { opacity: .92 }),
-      ell(-22, 5, 17, 10, "#ffffff", { opacity: .92 }),
-      ell(22, 5, 17, 10, "#ffffff", { opacity: .92 }),
-    );
-    return g;
-  }
-
-  function sun(x, y) {
+  // 木の群生（本家の森。決め打ち配置でチラつきなし）
+  function forest(x, y, list) {
     const g = grp(x, y, 1);
-    const rays = grp(0, 0, 1, "sc-spin");
-    for (let i = 0; i < 8; i++) {
-      const a = i * Math.PI / 4;
-      rays.append(el("line", {
-        x1: Math.cos(a) * 32, y1: Math.sin(a) * 32,
-        x2: Math.cos(a) * 44, y2: Math.sin(a) * 44,
-        stroke: "#ffd23e", "stroke-width": 7, "stroke-linecap": "round",
-      }));
-    }
-    g.append(rays, circ(0, 0, 27, "#ffd23e", { stroke: "#ffae00", "stroke-width": 3 }));
+    list.forEach(([dx, dy, s, kind]) => g.append(kind === "s" ? sakura(dx, dy, s) : tree(dx, dy, s)));
     return g;
   }
 
-  function rainbow(x, y, s) {
-    const g = grp(x, y, s);
-    [["#ef6a6a", 62], ["#ffd23e", 52], ["#7cc6f0", 42]].forEach(([c, r]) => {
-      g.append(path(`M${-r},0 A${r},${r} 0 0 1 ${r},0`, "none", { stroke: c, "stroke-width": 9, opacity: .8 }));
-    });
-    return g;
-  }
-
-  function rainCloud(x, y, s) {
-    const g = grp(x, y, s);
+  // 立体の緑の丘（本家の緑のプラ製の山）
+  function hill3d(x, y, s, rot = 0) {
+    const g = el("g", { transform: `translate(${x},${y}) rotate(${rot}) scale(${s})` });
     g.append(
-      ell(0, 0, 28, 14, "#9aa7b8"),
-      ell(-20, 5, 16, 10, "#8a97a8"),
-      ell(20, 5, 16, 10, "#a8b4c4"),
+      ell(8, 34, 150, 40, "rgba(20,60,20,.28)"),
+      path("M-150,30 Q-140,-40 -70,-58 Q-20,-90 40,-70 Q120,-78 140,-14 Q160,20 120,34 Q40,52 -60,44 Q-130,50 -150,30 Z", "#1f6e30", { stroke: "#175a26", "stroke-width": 3 }),
+      path("M-130,18 Q-120,-30 -60,-48 Q-15,-76 38,-58 Q105,-64 122,-12 Q100,10 40,4 Q-40,20 -130,18 Z", "#2f8f3f"),
+      path("M-70,-40 Q-20,-64 30,-50 Q0,-36 -40,-30 Z", "#4aa856", { opacity: .8 }),
     );
-    [-14, 0, 14].forEach((rx, i) => g.append(el("line", {
-      x1: rx, y1: 16, x2: rx - 5, y2: 30,
-      stroke: "#7fa8d0", "stroke-width": 3, "stroke-linecap": "round", opacity: .8 - i * .1,
-    })));
     return g;
   }
 
@@ -110,6 +85,7 @@ const Scenery = (() => {
   function school(x, y, s) {
     const g = grp(x, y, s);
     g.append(
+      ell(0, 4, 90, 14, "rgba(20,60,20,.22)"),
       rect(-72, -52, 144, 52, 4, "#f3e9d6", { stroke: "#c9b89a", "stroke-width": 2 }),
       path("M-82,-52 L0,-88 L82,-52 Z", "#c0504d"),
       circ(0, -66, 9, "#fff", { stroke: "#9a8a6a", "stroke-width": 2 }),
@@ -123,21 +99,13 @@ const Scenery = (() => {
 
   function office(x, y, s, color, win = "#ffe9a8") {
     const g = grp(x, y, s);
-    g.append(rect(-26, -84, 52, 84, 3, color, { stroke: "rgba(0,0,0,.18)", "stroke-width": 2 }));
+    g.append(
+      ell(0, 3, 34, 8, "rgba(20,60,20,.22)"),
+      rect(-26, -84, 52, 84, 3, color, { stroke: "rgba(0,0,0,.18)", "stroke-width": 2 }),
+    );
     for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) {
       g.append(rect(-18 + c * 14, -76 + r * 15, 9, 9, 1.5, win, { opacity: .85 }));
     }
-    return g;
-  }
-
-  function house(x, y, s, body = "#fff3df", roof = "#e0635f") {
-    const g = grp(x, y, s);
-    g.append(
-      rect(-24, -28, 48, 28, 3, body, { stroke: "rgba(0,0,0,.14)", "stroke-width": 2 }),
-      path("M-30,-28 L0,-50 L30,-28 Z", roof),
-      rect(-7, -18, 14, 18, 2, "#9a6a44"),
-      rect(10, -22, 10, 10, 2, "#aadcf5", { stroke: "#88b", "stroke-width": 1.5 }),
-    );
     return g;
   }
 
@@ -182,12 +150,6 @@ const Scenery = (() => {
     return g;
   }
 
-  function moon(x, y, s) {
-    const g = grp(x, y, s);
-    g.append(path("M0,-22 A22,22 0 1 1 0,22 A28,28 0 1 0 0,-22 Z", "#fff3b0", { opacity: .95 }));
-    return g;
-  }
-
   function sparkle(x, y, s) {
     const g = grp(x, y, s, "sc-twinkle");
     g.append(path("M0,-8 L2,-2 L8,0 L2,2 L0,8 L-2,2 L-8,0 L-2,-2 Z", "#fff8c9"));
@@ -228,10 +190,11 @@ const Scenery = (() => {
   function pond(x, y, s, withDuck) {
     const g = grp(x, y, s);
     g.append(
-      ell(0, 0, 48, 18, "#7ec8f5", { stroke: "#5aa9dd", "stroke-width": 3 }),
-      ell(-12, -3, 18, 6, "#b9e4fb"),
+      path("M-90,0 Q-96,-38 -40,-46 Q10,-62 60,-40 Q104,-28 92,8 Q76,40 10,38 Q-70,42 -90,0 Z", "#7ec8f5", { stroke: "#5aa9dd", "stroke-width": 4 }),
+      ell(-24, -8, 30, 9, "#b9e4fb"),
+      ell(40, 10, 16, 5, "#b9e4fb", { opacity: .8 }),
     );
-    if (withDuck) g.append(txt("🦆", { y: 2, "font-size": 18 }));
+    if (withDuck) g.append(txt("🦆", { x: 20, y: -8, "font-size": 22 }));
     return g;
   }
 
@@ -249,6 +212,7 @@ const Scenery = (() => {
   function palace(x, y, s) {
     const g = grp(x, y, s);
     g.append(
+      ell(0, 4, 84, 14, "rgba(20,60,20,.25)"),
       rect(-70, -8, 140, 14, 3, "#cdb98a"),
       rect(-52, -42, 104, 36, 3, "#f6d96b", { stroke: "#caa53a", "stroke-width": 2 }),
       path("M-64,-42 Q0,-66 64,-42 L52,-42 Q0,-58 -52,-42 Z", "#b3452e"),
@@ -271,7 +235,7 @@ const Scenery = (() => {
       rect(-66, -78, 11, 92, 4, "#e8590c"),
       rect(55, -78, 11, 92, 4, "#e8590c"),
       path("M-66,-72 Q0,-112 66,-72 L66,-58 Q0,-98 -66,-58 Z", "#ffd23e", { stroke: "#e8590c", "stroke-width": 3 }),
-      txt("START!", { y: -72, "font-size": 21, "font-weight": 900, fill: "#e8590c", transform: "rotate(0)" }),
+      txt("START!", { y: -72, "font-size": 21, "font-weight": 900, fill: "#e8590c" }),
     );
     return g;
   }
@@ -308,6 +272,77 @@ const Scenery = (() => {
       g.append(path(`M${bx - 9},${by} Q${bx - 4},${by - 7} ${bx},${by} Q${bx + 4},${by - 7} ${bx + 9},${by}`,
         "none", { stroke: color, "stroke-width": 2.5, "stroke-linecap": "round", fill: "none" })));
     return g;
+  }
+
+  // ---------- 中央の大型ルーレット（本家の緑の台座＋円盤。タップで実際に回す） ----------
+  const WHEEL_C = { x: 1750, y: 1490 };
+  const WHEEL_COLORS = ["#e8433e", "#f4841e", "#ffd23e", "#57b947", "#2f9bd8", "#3b58c9", "#8e44ad", "#e84393"];
+
+  function wheel(parent) {
+    const g = grp(WHEEL_C.x, WHEEL_C.y, 1, "big-wheel");
+
+    // 緑の台座（有機的なブロブ）
+    g.append(
+      path("M-420,40 Q-440,-160 -300,-260 Q-160,-390 40,-370 Q260,-400 360,-260 Q450,-140 410,30 Q380,220 180,300 Q-20,380 -240,300 Q-400,230 -420,40 Z",
+        "#237a33", { stroke: "#1a5f27", "stroke-width": 5 }),
+      path("M-390,30 Q-405,-150 -280,-240 Q-150,-360 40,-340 Q245,-370 335,-240 Q415,-130 380,25 Q350,195 165,270 Q-15,345 -225,272 Q-370,210 -390,30 Z",
+        "#2f8f3f"),
+      path("M-300,-180 Q-160,-300 40,-290 Q120,-296 190,-260 Q60,-290 -80,-260 Q-220,-230 -300,-180 Z", "#4aa856", { opacity: .7 }),
+    );
+
+    // 白い外輪
+    g.append(
+      circ(0, 8, 305, "rgba(0,0,0,.25)"),
+      circ(0, 0, 305, "#f4f2ea", { stroke: "#c9c4b4", "stroke-width": 5 }),
+    );
+    // 外輪のペグ
+    for (let i = 0; i < 24; i++) {
+      const a = i * Math.PI / 12;
+      g.append(circ(Math.cos(a) * 288, Math.sin(a) * 288, 7, "#dedacb", { stroke: "#b8b2a0", "stroke-width": 2 }));
+    }
+
+    // 数字盤（ゆっくり回る）
+    const disc = grp(0, 0, 1, "wheel-idle");
+    for (let i = 0; i < 8; i++) {
+      const a0 = (i * 45 - 90 - 22.5) * Math.PI / 180;
+      const a1 = (i * 45 - 90 + 22.5) * Math.PI / 180;
+      const r = 268;
+      disc.append(path(
+        `M0,0 L${(Math.cos(a0) * r).toFixed(1)},${(Math.sin(a0) * r).toFixed(1)} A${r},${r} 0 0 1 ${(Math.cos(a1) * r).toFixed(1)},${(Math.sin(a1) * r).toFixed(1)} Z`,
+        WHEEL_COLORS[i], { stroke: "#fff", "stroke-width": 5 }));
+      const am = (i * 45 - 90) * Math.PI / 180;
+      const nx = Math.cos(am) * 205, ny = Math.sin(am) * 205;
+      disc.append(txt(String(i + 1), {
+        x: nx, y: ny, "font-size": 96, "font-weight": 900, fill: "#fff",
+        "dominant-baseline": "central", "paint-order": "stroke",
+        stroke: "rgba(0,0,0,.35)", "stroke-width": 8,
+        transform: `rotate(${i * 45} ${nx.toFixed(1)} ${ny.toFixed(1)})`,
+      }));
+    }
+    g.append(disc);
+
+    // 中央のスピナー（十字の腕＋つまみ）
+    const arms = grp(0, 0, 1);
+    arms.append(
+      rect(-14, -150, 28, 300, 12, "rgba(255,255,255,.85)", { stroke: "#d0ccc0", "stroke-width": 2 }),
+      rect(-150, -14, 300, 28, 12, "rgba(255,255,255,.85)", { stroke: "#d0ccc0", "stroke-width": 2 }),
+      circ(0, 0, 46, "#fff", { stroke: "#c9c4b4", "stroke-width": 4 }),
+      circ(0, 0, 22, "#e8433e", { stroke: "#b3261e", "stroke-width": 3 }),
+      ell(-7, -8, 8, 5, "rgba(255,255,255,.7)"),
+    );
+    g.append(arms);
+
+    // タップで実際のルーレットを回す
+    g.style.cursor = "pointer";
+    g.addEventListener("click", () => {
+      const b = document.getElementById("btn-spin");
+      if (b && !b.closest("[hidden]") && !b.disabled) b.click();
+    });
+    const tt = el("title", {});
+    tt.textContent = "ルーレット（タップで回す）";
+    g.appendChild(tt);
+
+    parent.append(g);
   }
 
   // ---------- 物件スプライト（マップに実在する家。原点＝地面） ----------
@@ -354,22 +389,22 @@ const Scenery = (() => {
     () => { const g = grp(0, 0, 1); g.append(ell(0, 0, 42, 11, "#cfcfe0", { stroke: "#a8a8c0", "stroke-width": 2 }), circ(-22, -2, 4, "#b0b0c8"), circ(16, 1, 3, "#b0b0c8"), path("M-24,0 A24,24 0 0 1 24,0 Z", "rgba(170,220,245,.55)", { stroke: "#8ac0e0", "stroke-width": 2.5 }), rect(-6, -10, 12, 10, 2, "#e8e8f0"), el("line", { x1: 30, y1: 0, x2: 30, y2: -22, stroke: "#a8a8c0", "stroke-width": 2 }), path("M30,-22 L42,-18 L30,-14 Z", "#5aa9dd")); return g; },
   ];
 
-  // 物件の設置場所（似合うエリアに点在）
+  // 物件の設置場所（新レイアウトの空き地に点在）
   const HOUSE_SPOTS = [
-    { hi: 0,  x: 2520, y: 1438, s: 1 },    // 山小屋→山のふもと
-    { hi: 1,  x: 440,  y: 1604, s: 1 },    // 古民家→夕焼けの里
-    { hi: 2,  x: 245,  y: 240,  s: 1 },    // トレーラー→公園わき
-    { hi: 3,  x: 980,  y: 690,  s: 1 },    // アパート→青春の街
-    { hi: 4,  x: 1230, y: 300,  s: 1 },    // ツリーハウス→遊園地の森
-    { hi: 5,  x: 380,  y: 836,  s: 1 },    // ログハウス→郊外
-    { hi: 6,  x: 1320, y: 834,  s: 1 },    // 一軒家→郊外
-    { hi: 7,  x: 1800, y: 690,  s: 1 },    // マンション→青春の街
-    { hi: 8,  x: 2520, y: 760,  s: .95 },  // 海辺の別荘→東の浜辺
-    { hi: 9,  x: 560,  y: 966,  s: 1 },    // タワマン→夜の街
-    { hi: 10, x: 1730, y: 1600, s: 1 },    // 温泉付き豪邸→温泉郷
-    { hi: 11, x: 2520, y: 1620, s: 1 },    // 無人島ヴィラ→南東の海
-    { hi: 12, x: 120,  y: 1268, s: .95 },  // お城→丘の上
-    { hi: 13, x: 1800, y: 120,  s: 1 },    // 月ドーム→空の彼方
+    { hi: 0,  x: 560,  y: 2060, s: 1 },    // 山小屋→ふもとの里（左下）
+    { hi: 1,  x: 2300, y: 1630, s: 1 },    // 古民家→熟年の里（右）
+    { hi: 2,  x: 300,  y: 415,  s: 1 },    // トレーラー→公園わき（左上）
+    { hi: 3,  x: 720,  y: 480,  s: 1 },    // アパート→左上の住宅地
+    { hi: 4,  x: 900,  y: 1260, s: 1 },    // ツリーハウス→中央の森
+    { hi: 5,  x: 510,  y: 445,  s: 1 },    // ログハウス→左上の住宅地
+    { hi: 6,  x: 620,  y: 1190, s: 1 },    // 一軒家→中央の住宅地
+    { hi: 7,  x: 2480, y: 280,  s: 1 },    // マンション→右上の街
+    { hi: 8,  x: 780,  y: 1680, s: .95 },  // 海辺の別荘→池のほとり
+    { hi: 9,  x: 1160, y: 1320, s: 1 },    // タワマン→ルーレット西の街
+    { hi: 10, x: 2530, y: 1470, s: 1 },    // 温泉付き豪邸→温泉郷
+    { hi: 11, x: 320,  y: 1690, s: 1 },    // 無人島ヴィラ→西の湖畔
+    { hi: 12, x: 260,  y: 1370, s: .95 },  // お城→丘の上
+    { hi: 13, x: 2880, y: 200,  s: 1 },    // 月ドーム→右上の彼方
   ];
 
   function saleFlag() {
@@ -403,122 +438,119 @@ const Scenery = (() => {
     return out;
   }
 
-  // ---------- 描画（10行レイアウト：行y=150,300,…,1500） ----------
+  // ---------- 描画 ----------
   function render(parent) {
-    // エリア背景帯
-    const zones = el("g", { opacity: 1 });
-    zones.append(
-      rect(30, 55, 2540, 170, 70, "#bfe89f", { opacity: .45 }),     // 幼少期：公園
-      rect(30, 230, 2540, 290, 70, "#bcd9f2", { opacity: .4 }),     // 学生＆就職：キャンパス
-      rect(30, 525, 2540, 150, 70, "#ffe2b8", { opacity: .42 }),    // 社会人：青春の街
-      rect(30, 680, 2540, 142, 70, "#c4ecba", { opacity: .45 }),    // 安定：郊外
-      rect(30, 827, 2540, 148, 60, "#241638", { opacity: .88 }),    // ギャンブル：夜の街
-      rect(30, 980, 2540, 142, 60, "#c9d8e8", { opacity: .45 }),    // 波乱の40代：嵐の街
-      rect(30, 1127, 2540, 145, 60, "#e3d9f0", { opacity: .45 }),   // 熟年の階段
-      rect(30, 1277, 2540, 145, 60, "#ffe08a", { opacity: .5 }),    // 黄金のラストスパート
-      rect(30, 1427, 2540, 225, 60, "#ffc489", { opacity: .5 }),    // 夕焼けのフィナーレ
-    );
-    parent.append(zones);
+    // 芝生の濃淡（本家の芝マット感）
+    const gGrass = el("g", {});
+    [
+      [420, 350, 330, 200], [1500, 220, 420, 160], [2550, 500, 340, 220],
+      [600, 900, 380, 220], [1700, 620, 460, 180], [2500, 1100, 300, 260],
+      [400, 1500, 420, 280], [1300, 1550, 320, 260], [2400, 1900, 380, 240],
+      [900, 2050, 360, 180], [1900, 1250, 300, 200], [150, 1000, 260, 240],
+    ].forEach(([cx, cy, rx, ry]) => gGrass.append(ell(cx, cy, rx, ry, "#86c964", { opacity: .55 })));
+    // 芝の刈り込みストライプ（うっすら）
+    for (let i = 0; i < 8; i++) {
+      gGrass.append(el("rect", { x: 0, y: i * 300, width: 3000, height: 150, fill: "#70b350", opacity: .18 }));
+    }
+    parent.append(gGrass);
 
     const d = el("g", {});
-    // --- 空 ---
+
+    // --- 立体の丘（本家の緑のプラ山） ---
     d.append(
-      sun(2490, 95),
-      cloud(330, 62, 1), cloud(820, 80, .8), cloud(1450, 58, 1.1), cloud(2080, 88, .85),
+      hill3d(210, 105, .9, -6),
+      hill3d(2620, 690, .8, 8),
+      hill3d(180, 1180, 1.05, 4),
+      hill3d(300, 1980, .9, -4),
+      hill3d(1240, 1700, .7, 10),
     );
-    // --- 幼少期：公園 ---
+
+    // --- 森（木の群生を盤のあちこちに） ---
     d.append(
-      startArch(170, 108, 1),
-      rainbow(680, 92, .85),
-      tree(480, 238, .9), tree(1090, 95, .75),
-      emoji(360, 234, "🌷", 20), emoji(560, 110, "🌻", 20), emoji(950, 236, "🌷", 18),
+      forest(360, 120, [[-60, 0, .9], [0, 18, 1.05], [70, 4, .85], [130, 20, .95]]),                 // 上辺左
+      forest(1400, 105, [[-50, 0, .85], [20, 14, 1], [90, 2, .8]]),                                   // 上辺中央
+      forest(2300, 120, [[-40, 8, .9], [30, 0, 1], [100, 16, .85], [-110, 14, .8]]),                  // 上辺右
+      forest(180, 640, [[0, 0, .95], [55, 22, .8], [-15, 40, .85]]),                                  // 左辺
+      forest(880, 330, [[0, 0, .8, "s"], [60, 14, .9], [-55, 16, .85, "s"]]),                         // 左上住宅地の桜
+      forest(2780, 420, [[0, 0, .9], [-40, 30, .8], [30, 40, .95]]),                                  // 右上
+      forest(1350, 770, [[0, 0, .85], [60, 10, .75], [-60, 12, .8]]),                                 // 中央上
+      forest(500, 1120, [[0, 0, .9], [70, 18, 1], [-60, 20, .8], [10, 44, .85]]),                     // 中央左の森
+      forest(950, 1420, [[0, 0, .9], [60, 16, .8], [-55, 10, .85]]),                                  // 中央の森
+      forest(2680, 1250, [[0, 0, .85], [-45, 26, .95], [40, 34, .8]]),                                // 右の森
+      forest(2150, 1350, [[0, 0, .8], [55, 12, .9]]),                                                 // ルーレット東
+      forest(150, 1850, [[0, 0, .9], [60, 10, .8]]),                                                  // 左下
+      forest(700, 1940, [[0, 0, .85, "s"], [60, 18, .75, "s"]]),                                      // ふもとの桜
+      forest(1600, 2020, [[0, 0, .8], [65, 8, .9], [-60, 14, .75]]),                                  // 下辺中央
+      forest(2900, 950, [[0, 0, .85], [-30, 40, .75]]),                                               // 右辺
+      forest(2880, 1900, [[0, 0, .9], [-50, 20, .8]]),                                                // 右下
     );
-    // --- 右の大きな空き地＝遊園地（学生行の右側） ---
+
+    // --- 池（左中央の湖畔） ---
+    d.append(pond(650, 1620, 1.15, true));
+
+    // --- 各エリアの建物・小物 ---
     d.append(
-      ferris(2090, 400, 1.25),
-      pond(1500, 480, 1, true),
-      tree(1350, 300, 1), sakura(1900, 290, .9), tree(2380, 480, 1.1),
-      emoji(1750, 500, "🎪", 40),
+      // スタート＆公園
+      startArch(230, 138, .9),
+      emoji(420, 300, "🌷", 20), emoji(600, 290, "🌻", 20), emoji(180, 320, "🌷", 18),
+      // 大学ルートの学び舎（B1ループの内側）
+      school(1560, 350, .85),
+      sakura(1380, 330, .8), sakura(1720, 340, .75),
+      // 就職ルートのオフィス街（B2の下）
+      office(1240, 560, .55, "#9fb6c9"), office(1330, 555, .5, "#c9a9b0"),
+      // 青春の街（C東側の内側ポケット）
+      office(2050, 580, .45, "#cbb59b"),
+      emoji(2160, 572, "💒", 26),
+      // 左上の住宅地
+      emoji(620, 400, "🚏", 24),
+      // ギャンブル横丁（D2ループまわり）
+      neonSign(700, 690, .55),
+      dice(540, 720, .7, -15), playCards(830, 735, .8),
+      sparkle(640, 660, .9), sparkle(880, 700, .8), sparkle(500, 900, .8),
+      lamp(180, 1020, .8),
+      // 波乱の40代（Eの下）
+      emoji(430, 1120, "🏥", 30), emoji(760, 1130, "🚒", 26),
+      // 中央西の街（ルーレット左）
+      office(1120, 1520, .6, "#b9a9c9"), emoji(1210, 1560, "⛳", 26),
+      // 熟年の里（右コリドー内側）
+      torii(2380, 1320, 1),
+      onsen(2500, 1560, .95),
+      emoji(2250, 1250, "🪴", 24), emoji(2600, 1180, "🏦", 26),
+      // 黄金ロード（下辺の内側）
+      sparkle(1200, 1990, 1), sparkle(1800, 1960, .9), sparkle(2300, 2000, 1.1), sparkle(2600, 1930, .8),
+      emoji(1400, 1975, "🏆", 30), emoji(2050, 1980, "💰", 26), emoji(2450, 1940, "👑", 24),
+      slot(2470, 1965, .8),
+      lamp(1100, 2000, .8), lamp(2200, 1950, .8),
+      // フィナーレ＆ゴール
+      mountains(430, 1900, .9),
+      palace(2880, 2010, .95),
+      emoji(2680, 1955, "🌾", 20),
     );
-    // --- 学生：キャンパス／就職：オフィス ---
-    d.append(
-      school(140, 395, 1),
-      sakura(650, 378, .9), sakura(980, 372, .8),
-      emoji(820, 380, "📚", 24),
-      office(560, 540, .6, "#9fb6c9"), office(760, 535, .55, "#c9a9b0"),
-    );
-    // --- 社会人：青春の街 ---
-    d.append(
-      office(620, 688, .65, "#9fb6c9"), office(1530, 686, .7, "#cbb59b"), office(2080, 688, .6, "#a9c0a0"),
-      emoji(1240, 537, "💒", 44),
-      emoji(330, 535, "🚏", 28),
-      lamp(1750, 545, .8),
-    );
-    // --- 安定：郊外 ---
-    d.append(
-      pond(190, 690, .85, true),
-      house(930, 834, .85, "#eef7e0", "#5aa9dd"), house(2120, 832, .85, "#fff3df", "#f4b630"),
-      tree(720, 680, .7), tree(1900, 683, .75),
-      emoji(2350, 828, "🌻", 20),
-    );
-    // --- ギャンブル：夜の街 ---
-    d.append(
-      moon(2480, 870, 1),
-      sparkle(420, 858, 1), sparkle(940, 962, .8), sparkle(1480, 855, 1.1), sparkle(1990, 958, .9), sparkle(2330, 962, .8), sparkle(700, 866, .7),
-      neonSign(1180, 968, 1),
-      dice(330, 962, 1, -15), dice(2070, 964, .9, 18),
-      playCards(840, 962, 1),
-      slot(1620, 963, 1),
-      lamp(140, 945, .9), lamp(2480, 968, .9),
-    );
-    // --- 波乱の40代：嵐の街 ---
-    d.append(
-      rainCloud(2300, 1005, .95), rainCloud(550, 1000, .8),
-      emoji(420, 1132, "🏥", 32), emoji(1000, 1130, "🚒", 30),
-      office(700, 1140, .6, "#b9a9c9"), office(1850, 1138, .65, "#c9b59b", "#ffd9a8"),
-      tree(1240, 1133, .75),
-    );
-    // --- 熟年の階段 ---
-    d.append(
-      emoji(600, 1282, "⛳", 30), emoji(1100, 1280, "🪴", 26), emoji(1700, 1278, "🏦", 30),
-      tree(350, 1283, .85), tree(2200, 1280, .8),
-      lamp(2480, 1262, .8),
-    );
-    // --- 黄金のラストスパート ---
-    d.append(
-      sparkle(400, 1292, 1), sparkle(900, 1424, .9), sparkle(1500, 1290, 1.1), sparkle(2000, 1426, .9), sparkle(2350, 1292, .8),
-      emoji(650, 1432, "🏆", 34), emoji(1750, 1430, "💰", 30), emoji(1200, 1292, "👑", 26),
-    );
-    // --- 夕焼けのフィナーレ ---
-    d.append(
-      mountains(2280, 1462, 1),
-      mountains(1450, 1458, .7, "#9db8d4", "#bccfe4"),
-      palace(170, 1597, 1.1),
-      torii(950, 1597, 1),
-      onsen(1540, 1595, 1),
-      tree(640, 1600, .9), sakura(2050, 1597, .9),
-      emoji(1200, 1604, "🌾", 22), emoji(1880, 1606, "🍵", 20),
-    );
+
     // --- 章タイトル看板 ---
     d.append(
-      signboard(330, 100, 1, "第1章", "はじまりの公園"),
-      signboard(1290, 258, .9, "第2章", "進路の選択"),
-      signboard(430, 538, .9, "第3章", "青春の街"),
-      signboard(2330, 695, .9, "第4章", "人生の岐路"),
-      signboard(240, 1132, .9, "第5章", "波乱の40代"),
-      signboard(2350, 1138, .9, "第6章", "熟年の階段"),
-      signboard(330, 1292, .95, "第7章", "黄金ロード"),
-      signboard(1900, 1438, .95, "終章", "フィナーレ"),
+      signboard(450, 325, .95, "第1章", "はじまりの公園"),
+      signboard(990, 150, .85, "第2章", "進路の選択"),
+      signboard(2680, 330, .85, "第3章", "青春の街"),
+      signboard(1180, 1235, .85, "第4章", "人生の岐路"),
+      signboard(520, 1200, .9, "第5章", "波乱の40代"),
+      signboard(2620, 1080, .85, "第6章", "熟年の階段"),
+      signboard(1700, 2010, .9, "第7章", "黄金ロード"),
+      signboard(2640, 2005, .9, "終章", "フィナーレ"),
     );
+
     // --- 動く住人 ---
     d.append(
-      walker(1180, 830, "🐕", 22, 13),
-      walker(1400, 1282, "🐈", 20, 17),
-      walker(1860, 966, "🕴️", 26, 21),
+      walker(560, 1470, "🐕", 22, 13),
+      walker(1850, 1990, "🐈", 20, 17),
+      walker(760, 940, "🕴️", 24, 21),
       birds(300, 80, 1, "#5a7a9a", 34),
-      birds(500, 1448, .8, "#8a5a4a", 44),
+      birds(1500, 1150, .8, "#8a5a4a", 44),
     );
     parent.append(d);
+
+    // --- 中央の大型ルーレット ---
+    wheel(parent);
   }
 
   return { render, houses };

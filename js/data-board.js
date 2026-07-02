@@ -1,10 +1,12 @@
-// 盤面データ v3：全143マス。座標は「うねる曲線レイアウト」で自動計算する
+// 盤面データ v4：全151マス。本家風「マス自体が道」レイアウト
+// 中心線スプラインに沿って台形マスを隙間なく敷き詰める（座標はSEGDEFSの経由点から自動計算）
 // コース：幼少期 → 進路分岐(stop) → 大学/就職(職業ゾーン) → 青春の街 → マイホーム街道(家購入は強制)
 //        → ギャンブル横丁への寄り道分岐(stop) → 波乱の40代 → 熟年の階段 → 黄金ロード → フィナーレ(ゴール前にたな卸し) → ゴール
 // 「sg」が付いたマスは章内で毎ゲーム内容シャッフルされる（fixed=構造マスは固定）
 
-const BOARD_W = 2950;
-const BOARD_H = 1930;
+const BOARD_W = 3000;
+const BOARD_H = 2300;
+const ROAD_W  = 132;   // 道幅＝マスの横幅
 
 function squareIcon(sq) {
   switch (sq.t) {
@@ -47,15 +49,11 @@ function squareIcon(sq) {
 const SQUARES = (() => {
   const sq = [];
 
-  // 1行ぶんを x0→x1 に等間隔配置しつつ、サインカーブで上下にうねらせる
+  // 1章ぶんのマス内容を順番に登録する（座標は後段のレイアウトエンジンが与える。
+  // 旧引数 baseY/x0/x1/amp/waves/phase は互換のため残すが未使用）
   function row(baseY, x0, x1, amp, waves, phase, sg, defs) {
-    const n = defs.length;
-    const step = n > 1 ? (x1 - x0) / (n - 1) : 0;
-    defs.forEach((d, i) => {
-      const t = n > 1 ? i / (n - 1) : 0;
+    defs.forEach(d => {
       d.id = sq.length;
-      d.x = Math.round(x0 + step * i);
-      d.y = Math.round(baseY + amp * Math.sin(t * Math.PI * waves + phase));
       if (sg && !d.fixed) d.sg = sg;
       delete d.fixed;
       sq.push(d);
@@ -338,21 +336,93 @@ const SQUARES = (() => {
   return sq;
 })();
 
-// 道路を滑らかな1本道として描くためのマスIDチェーン（重複区間は重ね描きでOK）
-const ROAD_CHAINS = (() => {
-  const r = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
-  return [
-    r(0, 9),
-    [9, ...r(10, 20), 32],
-    [9, ...r(21, 31), 32],
-    r(32, 58),
-    [58, ...r(59, 65), 78],
-    [58, ...r(66, 77), 78],
-    r(78, 86),
-    [86, ...r(87, 97), 106],
-    [86, ...r(98, 105), 106],
-    r(106, 150),
-  ];
+// ============ 本家風レイアウトエンジン ============
+// 各セグメント＝マスID a〜b を経由点 pts のスプラインに沿って等間隔に敷き詰める。
+// 分岐は「同じ始点・同じ終点」を共有する2セグメントで表現する。
+const SEGDEFS = [
+  { a: 0,   b: 9,   pts: [[230, 210], [520, 180], [850, 235], [1120, 210]] },                                  // 第1章 幼少期
+  { a: 10,  b: 20,  pts: [[1120, 185], [1560, 170], [2110, 230], [2230, 330], [2190, 390]] },                  // 大学ルート（分岐上側→合流上側）
+  { a: 21,  b: 31,  pts: [[1130, 265], [1200, 375], [1560, 455], [1950, 470], [2190, 480]] },                  // 就職ルート（分岐下側→合流下側）
+  { a: 32,  b: 58,  pts: [[2250, 435], [2650, 420], [2860, 540], [2720, 660], [2300, 640], [1700, 665], [1050, 615]] },  // 青春の街〜マイホーム街道
+  { a: 59,  b: 65,  pts: [[1050, 590], [640, 580], [380, 645], [330, 715]] },                                  // 平穏な家路（分岐上側→合流上側）
+  { a: 66,  b: 77,  pts: [[1055, 675], [1000, 765], [850, 848], [620, 815], [430, 872], [300, 802]] },         // ギャンブル横丁（分岐下側→合流下側）
+  { a: 78,  b: 86,  pts: [[290, 760], [185, 880], [290, 990], [640, 1030], [1000, 985]] },                     // 波乱の40代
+  { a: 87,  b: 97,  pts: [[995, 940], [1175, 868], [1620, 795], [2030, 855], [2105, 940]] },                   // 現状維持の道（分岐上側→合流上側）
+  { a: 98,  b: 105, pts: [[1005, 1045], [1350, 1075], [1800, 1060], [2110, 1040]] },                           // キャリアアップ街道（分岐下側→合流下側）
+  { a: 106, b: 150, pts: [[2140, 990], [2620, 970], [2870, 1090], [2830, 1330], [2880, 1560], [2740, 1760], [2450, 1840], [1900, 1880], [1300, 1830], [950, 1870], [790, 1990], [900, 2110], [1300, 2160], [1900, 2130], [2400, 2160], [2760, 2100]] },  // 熟年〜黄金〜フィナーレ〜ゴール
+];
+
+// Catmull-Romスプラインを高密度サンプリングして折れ線化
+function _splineSample(pts, per = 28) {
+  const P = [pts[0], ...pts, pts[pts.length - 1]];
+  const out = [{ x: pts[0][0], y: pts[0][1] }];
+  for (let i = 1; i < P.length - 2; i++) {
+    const p0 = P[i - 1], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2];
+    for (let j = 1; j <= per; j++) {
+      const t = j / per, t2 = t * t, t3 = t2 * t;
+      out.push({
+        x: .5 * (2 * p1[0] + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3),
+        y: .5 * (2 * p1[1] + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3),
+      });
+    }
+  }
+  return out;
+}
+
+// 道路の白帯を描くためのセグメント別中心線（サンプル済み折れ線）
+const ROAD_LINES = [];
+
+(() => {
+  SEGDEFS.forEach(seg => {
+    const pts = _splineSample(seg.pts);
+    ROAD_LINES.push(pts);
+
+    // 弧長テーブル
+    const cum = [0];
+    for (let i = 1; i < pts.length; i++) {
+      cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+    }
+    const L = cum[cum.length - 1];
+
+    // 弧長sの位置と接線（単位ベクトル）を返す
+    function at(s) {
+      const t = Math.max(0, Math.min(L, s));
+      let lo = 0, hi = cum.length - 1;
+      while (lo < hi - 1) { const m = (lo + hi) >> 1; (cum[m] <= t ? lo = m : hi = m); }
+      const seglen = cum[hi] - cum[lo] || 1;
+      const k = (t - cum[lo]) / seglen;
+      const x = pts[lo].x + (pts[hi].x - pts[lo].x) * k;
+      const y = pts[lo].y + (pts[hi].y - pts[lo].y) * k;
+      // 接線は少し先とのdiffで安定化
+      const j = Math.min(pts.length - 1, hi + 1), i0 = Math.max(0, lo - 1);
+      let dx = pts[j].x - pts[i0].x, dy = pts[j].y - pts[i0].y;
+      const d = Math.hypot(dx, dy) || 1;
+      return { x, y, tx: dx / d, ty: dy / d };
+    }
+
+    const n = seg.b - seg.a + 1;
+    const half = ROAD_W / 2;
+    // マス境界（n+1本）の位置と法線
+    const bounds = [];
+    for (let i = 0; i <= n; i++) {
+      const p = at(L * i / n);
+      bounds.push({ x: p.x, y: p.y, nx: -p.ty, ny: p.tx });
+    }
+    for (let i = 0; i < n; i++) {
+      const s = SQUARES[seg.a + i];
+      const c = at(L * (i + .5) / n);
+      s.x = Math.round(c.x);
+      s.y = Math.round(c.y);
+      s.a = Math.atan2(c.ty, c.tx) * 180 / Math.PI;                 // 進行方向の角度
+      const b0 = bounds[i], b1 = bounds[i + 1];
+      s.quad = [
+        [b0.x + b0.nx * half, b0.y + b0.ny * half],
+        [b1.x + b1.nx * half, b1.y + b1.ny * half],
+        [b1.x - b1.nx * half, b1.y - b1.ny * half],
+        [b0.x - b0.nx * half, b0.y - b0.ny * half],
+      ].map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
+    }
+  });
 })();
 
 // ---- 毎ゲームのマス内容シャッフル（章内のみ・構造マスは固定） ----

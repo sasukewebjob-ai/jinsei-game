@@ -1,8 +1,8 @@
-// SVG盤面の描画：曲線道路・風景・立体マス・車型コマ（家族ピン付き）・カメラ
+// SVG盤面の描画（本家風）：マス自体が道になる台形マス帯・芝生と風景・車型コマ・カメラ
 
 const Board = (() => {
   const NS = "http://www.w3.org/2000/svg";
-  const FOLLOW_W = 1500;            // 追従カメラの表示幅（盤面座標系）
+  const FOLLOW_W = 1400;            // 追従カメラの表示幅（盤面座標系）
   let svg = null, gTokens = null, gFx = null;
   let tokenEls = {}, tokenXY = {}, houseEls = null, sqEls = {};
   let players = [], curPlayer = null;
@@ -16,30 +16,66 @@ const Board = (() => {
 
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
-  // Catmull-Rom → ベジェ変換でマス中心を通る滑らかな道を作る
-  function smoothPath(pts) {
-    if (pts.length < 2) return "";
-    let d = `M${pts[0].x},${pts[0].y}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[Math.max(0, i - 1)], p1 = pts[i];
-      const p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
-      const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
-      const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
-      d += `C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x},${p2.y}`;
-    }
-    return d;
+  // 中心線折れ線 → pathのd文字列
+  function lineD(pts) {
+    return "M" + pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join("L");
   }
 
-  function buildDefs() {
-    const defs = el("defs", {});
-    const sky = el("linearGradient", { id: "skyGrad", x1: 0, y1: 0, x2: 0, y2: 1 });
-    [["0%", "#aee2ff"], ["30%", "#cfeec8"], ["100%", "#bfe5ab"]].forEach(([o, c]) =>
-      sky.appendChild(el("stop", { offset: o, "stop-color": c })));
-    const gloss = el("linearGradient", { id: "sqGloss", x1: 0, y1: 0, x2: 0, y2: 1 });
-    [["0%", "rgba(255,255,255,.40)"], ["55%", "rgba(255,255,255,.06)"], ["100%", "rgba(255,255,255,0)"]].forEach(([o, c]) =>
-      gloss.appendChild(el("stop", { offset: o, "stop-color": c })));
-    defs.append(sky, gloss);
-    return defs;
+  // ラベルを2行に割る（5文字超は中央で分割）
+  function splitLabel(label) {
+    if (label.length <= 5) return [label];
+    const h = Math.ceil(label.length / 2);
+    return [label.slice(0, h), label.slice(h)];
+  }
+
+  // 金額の万表記（盤面用）
+  function manStr(amount) {
+    const man = Math.round(Math.abs(amount) / 10000);
+    return (amount > 0 ? "＋" : "−") + man + "万";
+  }
+
+  // マス文字を上下逆さにしない回転角
+  function uprightAngle(a) {
+    let d = ((a % 360) + 360) % 360;
+    return (d > 90 && d < 270) ? a + 180 : a;
+  }
+
+  // 文字を暗色にするマス（明るい地色）
+  const DARK_TEXT = new Set(["money", "promo", "bridge", "goal", "lottery"]);
+
+  // ストップ看板・祝バッジを置く側（盤の中心から遠い側の法線方向）
+  function outwardNormal(s) {
+    const rad = s.a * Math.PI / 180;
+    let nx = -Math.sin(rad), ny = Math.cos(rad);
+    const dot = nx * (s.x - BOARD_W / 2) + ny * (s.y - BOARD_H / 2);
+    if (dot < 0) { nx = -nx; ny = -ny; }
+    return { nx, ny };
+  }
+
+  // 本家風の黒い「ストップ」看板（マスの縁に密着）
+  function stopSign(s) {
+    const { nx, ny } = outwardNormal(s);
+    const px = s.x + nx * (ROAD_W / 2 + 8), py = s.y + ny * (ROAD_W / 2 + 8);
+    const g = el("g", { transform: `translate(${px.toFixed(1)},${py.toFixed(1)})`, class: "sq-stopsign" });
+    g.appendChild(el("rect", { x: -44, y: -16, width: 88, height: 32, rx: 8, fill: "#17171c", stroke: "#e8433e", "stroke-width": 4 }));
+    const t = el("text", { y: 6.5, class: "stopsign-txt" });
+    t.textContent = "ストップ";
+    g.appendChild(t);
+    return g;
+  }
+
+  // お祝いマスの「祝」バッジ（マスの角に重ねる。ストップ看板と重ならないよう進行方向へずらす）
+  function iwaiBadge(s) {
+    const { nx, ny } = outwardNormal(s);
+    const rad = s.a * Math.PI / 180;
+    const tx = Math.cos(rad) * 66, ty = Math.sin(rad) * 66;
+    const px = s.x + nx * (ROAD_W / 2 - 4) + tx, py = s.y + ny * (ROAD_W / 2 - 4) + ty;
+    const g = el("g", { transform: `translate(${px.toFixed(1)},${py.toFixed(1)}) rotate(-12)` });
+    g.appendChild(el("circle", { r: 16, fill: "#e8433e", stroke: "#fff", "stroke-width": 3 }));
+    const t = el("text", { y: 6, class: "iwai-txt" });
+    t.textContent = "祝";
+    g.appendChild(t);
+    return g;
   }
 
   function build(st) {
@@ -47,55 +83,83 @@ const Board = (() => {
     svg = document.getElementById("board-svg");
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     svg.setAttribute("viewBox", `0 0 ${BOARD_W} ${BOARD_H}`);
-    svg.appendChild(buildDefs());
 
-    // 大地と空
-    svg.appendChild(el("rect", { x: 0, y: 0, width: BOARD_W, height: BOARD_H, fill: "url(#skyGrad)" }));
+    // 芝生（本家の緑の大地）
+    svg.appendChild(el("rect", { x: 0, y: 0, width: BOARD_W, height: BOARD_H, fill: "#79bd57" }));
 
-    // 風景（旧2600x1700座標系のままスケーリングして配置）
-    const gScenery = el("g", { transform: "translate(0,-5) scale(1.135 1.1667)" });
+    // 風景（芝生の模様・木・丘・池・建物・中央ルーレット）
+    const gScenery = el("g", {});
     Scenery.render(gScenery);
     svg.appendChild(gScenery);
 
-    // 道（チェーンごとに滑らかな1本道：厚み→外縁→路面→センターライン）
+    // 道路の白帯（影 → 白縁）。この上にマスが乗ることで白いフチだけが見える
     const gRoad = el("g", {});
-    const chains = ROAD_CHAINS.map(c => smoothPath(c.map(id => SQUARES[id])));
-    [["road-depth", "translate(0,8)"], ["road-outer", null], ["road-inner", null], ["road-center", null]].forEach(([cls, tr]) => {
-      chains.forEach(d => gRoad.appendChild(el("path", Object.assign({ d, class: cls, fill: "none" }, tr ? { transform: tr } : {}))));
+    ROAD_LINES.forEach(pts => {
+      const d = lineD(pts);
+      gRoad.appendChild(el("path", { d, class: "rd-shadow", fill: "none", transform: "translate(5,10)" }));
+      gRoad.appendChild(el("path", { d, class: "rd-band", fill: "none" }));
     });
     svg.appendChild(gRoad);
 
-    // 物件（購入するとプレイヤーカラーの表札が付く）
-    const gHouses = el("g", { transform: "translate(0,-5) scale(1.135 1.1667)" });
-    svg.appendChild(gHouses);
-    houseEls = Scenery.houses(gHouses);
-    syncHouses(st);
-
-    // マス（影→側面(2.5D押し出し)→本体→グロス→アイコン→ラベル）
+    // マス（道に沿った台形。文字は進行方向に合わせて回転）
     const gSq = el("g", {});
+    const gSigns = el("g", { "pointer-events": "none" });
     sqEls = {};
     SQUARES.forEach(s => {
-      const g = el("g", { transform: `translate(${s.x},${s.y})` });
+      const g = el("g", {});
       sqEls[s.id] = g;
       let cls = `sq sq-${s.t}`;
       if (s.t === "money") cls += s.amount > 0 ? " sq-plus" : " sq-minus";
-      if (s.t === "move") cls += s.steps > 0 ? " sq-mvplus" : " sq-mvminus";
-      g.appendChild(el("rect", { x: -53, y: -30, width: 118, height: 84, rx: 18, fill: "rgba(40,30,10,.22)" }));
-      g.appendChild(el("rect", { x: -59, y: -34, width: 118, height: 84, rx: 18, class: cls }));
-      g.appendChild(el("rect", { x: -59, y: -34, width: 118, height: 84, rx: 18, fill: "rgba(0,0,0,.32)" }));
-      g.appendChild(el("rect", { x: -59, y: -42, width: 118, height: 84, rx: 18, class: cls }));
-      g.appendChild(el("rect", { x: -59, y: -42, width: 118, height: 84, rx: 18, fill: "url(#sqGloss)", "pointer-events": "none" }));
-      if (s.stop) g.appendChild(el("rect", { x: -59, y: -42, width: 118, height: 84, rx: 18, class: "sq-stopring", fill: "none" }));
-      g.appendChild(Icons.gNode(Icons.squareKey(s), 42, 0, -11));
-      const lb = el("text", { y: 28, class: "sq-label" + (s.t === "payday" ? " sq-label-dark" : "") });
-      lb.textContent = s.label;
-      g.appendChild(lb);
+      const ptsStr = s.quad.map(p => p.join(",")).join(" ");
+      g.appendChild(el("polygon", { points: ptsStr, class: cls }));
+
+      // マス内の文字・アイコン（進行方向に回転／逆さ防止）
+      const rot = uprightAngle(s.a);
+      const c = el("g", { transform: `translate(${s.x},${s.y}) rotate(${rot.toFixed(1)})`, class: "sq-content" });
+      const dark = DARK_TEXT.has(s.t);
+      const lines = splitLabel(s.label);
+      const hasAmt = (s.t === "money" || s.t === "accident") && s.amount;
+      // 縦（道幅方向）配置：アイコン→ラベル→金額
+      const iconY = -40;
+      c.appendChild(Icons.gNode(Icons.squareKey(s), 30, 0, iconY));
+      const lblCls = "sq-txt " + (dark ? "sqt-dark" : "sqt-light");
+      if (lines.length === 1) {
+        const t = el("text", { y: hasAmt ? 0 : 10, class: lblCls });
+        t.textContent = lines[0];
+        c.appendChild(t);
+      } else {
+        const t1 = el("text", { y: hasAmt ? -8 : -2, class: lblCls });
+        t1.textContent = lines[0];
+        const t2 = el("text", { y: hasAmt ? 10 : 16, class: lblCls });
+        t2.textContent = lines[1];
+        c.appendChild(t1);
+        c.appendChild(t2);
+      }
+      if (hasAmt) {
+        const amt = s.t === "accident" ? -Math.abs(s.amount) : s.amount;
+        const ta = el("text", { y: 34, class: "sq-amt " + (amt > 0 ? "sq-amt-plus" : "sq-amt-minus") + (dark ? "" : " sq-amt-onlight") });
+        ta.textContent = manStr(amt);
+        c.appendChild(ta);
+      }
+      g.appendChild(c);
+
+      // 完全停止マス＝黒いストップ看板／お祝いマス＝祝バッジ
+      if (s.stop && s.t !== "branch") gSigns.appendChild(stopSign(s));
+      if (s.t === "marriage" || s.t === "gift" || s.t === "child") gSigns.appendChild(iwaiBadge(s));
+
       const tt = el("title", {});
       tt.textContent = s.text;
       g.appendChild(tt);
       gSq.appendChild(g);
     });
     svg.appendChild(gSq);
+    svg.appendChild(gSigns);
+
+    // 物件（購入するとプレイヤーカラーの表札が付く）
+    const gHouses = el("g", {});
+    svg.appendChild(gHouses);
+    houseEls = Scenery.houses(gHouses);
+    syncHouses(st);
 
     // コマ（車）とエフェクト層
     gTokens = el("g", {});

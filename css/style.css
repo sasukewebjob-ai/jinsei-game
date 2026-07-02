@@ -177,7 +177,7 @@ body {
 
 #game-main { flex: 1; display: flex; min-height: 0; }
 
-#board-area { flex: 1; position: relative; min-width: 0; background: #aee2ff; }
+#board-area { flex: 1; position: relative; min-width: 0; background: #6cb14e; }
 
 /* 所持金HUD（現手番プレイヤーの総額を常時表示） */
 #money-hud {
@@ -216,50 +216,74 @@ body {
 .sc-neon { animation: sc-neonk 1.4s ease-in-out infinite; }
 @keyframes sc-neonk { 50% { opacity: .72; } }
 
-/* 道（depth=厚み） */
-.road-depth { stroke: #8a5e35; stroke-width: 74; stroke-linecap: round; stroke-linejoin: round; }
-.road-outer { stroke: #b8895a; stroke-width: 74; stroke-linecap: round; stroke-linejoin: round; }
-.road-inner { stroke: #f7ead0; stroke-width: 58; stroke-linecap: round; stroke-linejoin: round; }
-.road-center { stroke: #ffffff; stroke-width: 4; stroke-dasharray: 18 25; opacity: .75; stroke-linecap: round; }
+/* 道路（マスの帯の下地：影と白いフチ） */
+.rd-shadow { stroke: rgba(25, 65, 20, .35); stroke-width: 158; stroke-linecap: round; stroke-linejoin: round; }
+.rd-band   { stroke: #ffffff; stroke-width: 156; stroke-linecap: round; stroke-linejoin: round; }
 
-/* マス */
-.sq { stroke: rgba(0,0,0,.28); stroke-width: 2.5; }
-.sq-stopring { stroke: #e11d48; stroke-width: 5; stroke-dasharray: 11 7; }
-.sq-here rect.sq { stroke: #ffd93d; stroke-width: 6; }
-.sq-here { filter: drop-shadow(0 0 14px rgba(255, 217, 61, .9)); }
-.sq-start      { fill: #475569; }
-.sq-goal       { fill: #f59e0b; }
-.sq-plus       { fill: #3b9ff0; }
-.sq-minus      { fill: #f06a6a; }
-.sq-mvplus     { fill: #14b8a6; }
-.sq-mvminus    { fill: #fb7185; }
-.sq-payday     { fill: #ffd93d; }
-.sq-card       { fill: #ff9f43; }
-.sq-skip       { fill: #94a3b8; }
-.sq-branch     { fill: #a78bfa; }
-.sq-job, .sq-jobchange { fill: #34d399; }
-.sq-marriage   { fill: #f472b6; }
-.sq-child      { fill: #fda4af; }
-.sq-house      { fill: #e1903e; }
-.sq-insurance  { fill: #64748b; }
-.sq-stock      { fill: #38bdf8; }
-.sq-casino     { fill: #c026d3; }
-.sq-lottery    { fill: #d946ef; }
-.sq-disaster   { fill: #7f1d1d; }
-.sq-accident   { fill: #ef4444; }
-.sq-fire       { fill: #dc2626; }
-.sq-housedmg   { fill: #608aa5; }
-.sq-layoff     { fill: #57534e; }
-.sq-stockboom  { fill: #16a34a; }
-.sq-stockcrash { fill: #1e40af; }
-.sq-jobsq      { fill: #2dbd8d; }
-.sq-jobfair    { fill: #0d9488; }
-.sq-gift       { fill: #f4729c; }
+/* マス（道に敷き詰めた台形。白い仕切り線が本家の見た目を作る） */
+.sq { stroke: #ffffff; stroke-width: 4; stroke-linejoin: round; }
+.sq-here polygon.sq { stroke: #ffd93d; stroke-width: 7; }
+.sq-here { filter: drop-shadow(0 0 14px rgba(255, 217, 61, .95)); }
+.sq-content { pointer-events: none; }
+.sq-start      { fill: #2f9e44; }
+.sq-goal       { fill: #ffc93d; }
+.sq-plus       { fill: #ffd94f; }
+.sq-minus      { fill: #ffab38; }
+.sq-payday     { fill: #ef4b3d; }
+.sq-card       { fill: #3f7de8; }
+.sq-skip       { fill: #8d99ae; }
+.sq-branch     { fill: #43a047; }
+.sq-marriage   { fill: #f26fa4; }
+.sq-child      { fill: #f78fb5; }
+.sq-house      { fill: #e0762e; }
+.sq-insurance  { fill: #45a595; }
+.sq-stock      { fill: #2e9e77; }
+.sq-casino     { fill: #8e44ad; }
+.sq-lottery    { fill: #ffd94f; }
+.sq-disaster   { fill: #8e1e1e; }
+.sq-accident   { fill: #e05045; }
+.sq-fire       { fill: #d1372c; }
+.sq-housedmg   { fill: #5f8aa8; }
+.sq-layoff     { fill: #5d564f; }
+.sq-stockboom  { fill: #1f9e42; }
+.sq-stockcrash { fill: #274ea8; }
+.sq-jobsq      { fill: #4aa8dd; }
+.sq-jobfair    { fill: #2456c9; }
+.sq-jobchange  { fill: #2456c9; }
+.sq-gift       { fill: #ef5f8e; }
 .sq-finalbet   { fill: #b45309; }
-.sq-duel       { fill: #be123c; }
+.sq-duel       { fill: #c22045; }
 .sq-choice     { fill: #7c3aed; }
 .sq-preclose   { fill: #0e9aa7; }
-.sq-promo      { fill: #d4a017; }
+.sq-promo      { fill: #f2b90c; }
+.sq-bridge     { fill: #c9963a; }
+
+/* マス内テキスト */
+.sq-txt {
+  font-size: 17px; font-weight: 900; text-anchor: middle;
+}
+.sqt-dark { fill: #33230e; }
+.sqt-light {
+  fill: #fff;
+  paint-order: stroke;
+  stroke: rgba(0,0,0,.45); stroke-width: 3;
+}
+.sq-amt { font-size: 20px; font-weight: 900; text-anchor: middle; }
+.sq-amt-plus  { fill: #0b6e2e; }
+.sq-amt-minus { fill: #c11616; }
+.sq-amt-plus.sq-amt-onlight  { fill: #d7ffdf; paint-order: stroke; stroke: rgba(0,60,20,.6); stroke-width: 3; }
+.sq-amt-minus.sq-amt-onlight { fill: #ffe1e1; paint-order: stroke; stroke: rgba(80,0,0,.6); stroke-width: 3; }
+
+/* ストップ看板・祝バッジ */
+.stopsign-txt { font-size: 17px; font-weight: 900; fill: #fff; text-anchor: middle; letter-spacing: .04em; }
+.iwai-txt { font-size: 17px; font-weight: 900; fill: #fff; text-anchor: middle; }
+
+/* 中央の大型ルーレット */
+.wheel-idle {
+  transform-box: fill-box; transform-origin: center;
+  animation: wheel-rot 90s linear infinite;
+}
+@keyframes wheel-rot { to { rotate: 360deg; } }
 
 /* 物件（マップ上の家） */
 .hs .hs-flag { display: none; }
@@ -285,14 +309,6 @@ body {
   from { transform: translate(0, 0); }
   to   { transform: translate(1600px, -50px); }
 }
-
-.sq-label {
-  font-size: 15.5px; font-weight: bold; fill: #fff;
-  text-anchor: middle;
-  paint-order: stroke;
-  stroke: rgba(0,0,0,.4); stroke-width: 3;
-}
-.sq-label-dark { fill: #5b4636; stroke: rgba(255,255,255,.65); }
 
 /* コマ（車） */
 .token { pointer-events: none; }
