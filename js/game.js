@@ -1,7 +1,7 @@
 // ゲーム本体：ターン進行のステートマシン・マス効果の解決・精算・セーブ
 
 const Game = (() => {
-  const SAVE_KEY = "jinsei-game-save-v6";
+  const SAVE_KEY = "jinsei-game-save-v7";
 
   const hasJob = (p, name) => p.job && p.job.n === name;
 

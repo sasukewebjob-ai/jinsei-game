@@ -92,14 +92,32 @@ const Roulette = (() => {
     })();
   }
 
-  // ---- ボタン回し：狙った出目に向かってイージング回転 ----
-  function spinTo(k) {
-    busy = true;
+  // ---- 自分で止める方式：1回目のボタンで高速回転開始 → 2回目のボタンで減速停止 ----
+  let phase = "idle";            // idle → spinning → stopping
+  let autoTimer = 0;
+
+  // 高速フリー回転（止めるまで回り続ける）
+  function startFree() {
+    phase = "spinning";
     Sound.play("spin");
+    let last = performance.now();
+    (function frame(now) {
+      if (phase !== "spinning") return;
+      const dt = Math.min(50, now - last);
+      last = now;
+      rotation += 0.55 * dt * (window.TURBO || 1);   // 約550度/秒
+      applyRot(1);
+      requestAnimationFrame(frame);
+    })(last);
+  }
+
+  // 出目kに向かって減速停止
+  function stopTo(k) {
+    phase = "stopping";
     const desired = ((-(k - 0.5) * SEG) % 360 + 360) % 360;
     const cur = ((rotation % 360) + 360) % 360;
-    const targetRot = rotation + 360 * 5 + ((desired - cur + 360) % 360) + (Math.random() * 24 - 12);
-    const startRot = rotation, t0 = performance.now(), dur = 2600 / (window.TURBO || 1);
+    const targetRot = rotation + 360 * 2 + ((desired - cur + 360) % 360) + (Math.random() * 24 - 12);
+    const startRot = rotation, t0 = performance.now(), dur = 1800 / (window.TURBO || 1);
     (function frame(now) {
       const t = Math.min(1, (now - t0) / dur);
       const e = 1 - Math.pow(1 - t, 3);
@@ -118,7 +136,7 @@ const Roulette = (() => {
     out.hidden = false;
     setTimeout(() => {
       document.getElementById("overlay-roulette").hidden = true;
-      busy = false;
+      phase = "idle";
       const r = resolveFn;
       resolveFn = null;
       r && r(k);
@@ -131,7 +149,7 @@ const Roulette = (() => {
     return new Promise(res => {
       resolveFn = res;
       forced = force || 0;
-      busy = false;
+      phase = "idle";
       const ov = document.getElementById("overlay-roulette");
       const btn = document.getElementById("btn-do-spin");
       const out = document.getElementById("roulette-result");
@@ -139,12 +157,26 @@ const Roulette = (() => {
       document.getElementById("roulette-label").textContent = label || "ルーレット";
       out.hidden = true;
       btn.disabled = false;
+      btn.textContent = "回す！";
       hint.textContent = forced ? "🚀 ターボ発動中！ボタンで回そう" : "ボタンを押して回そう！";
       ov.hidden = false;
-      btn.onclick = () => {
-        if (busy) return;
+
+      const stopNow = () => {
+        if (phase !== "spinning") return;
+        clearTimeout(autoTimer);
         btn.disabled = true;
-        spinTo(forced || (1 + Math.floor(Math.random() * SECTORS)));
+        stopTo(forced || (1 + Math.floor(Math.random() * SECTORS)));
+      };
+      btn.onclick = () => {
+        if (phase === "idle") {
+          startFree();
+          btn.textContent = "ストップ！";
+          hint.textContent = "もう一度押して止めよう！";
+          // 押されなくても6秒で自動停止（放置対策）
+          autoTimer = setTimeout(stopNow, 6000 / (window.TURBO || 1));
+        } else if (phase === "spinning") {
+          stopNow();
+        }
       };
     });
   }

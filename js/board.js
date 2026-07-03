@@ -92,11 +92,12 @@ const Board = (() => {
     Scenery.render(gScenery);
     svg.appendChild(gScenery);
 
-    // 道路の白帯（影 → 白縁）。この上にマスが乗ることで白いフチだけが見える
+    // 道路の白帯（影 → 側面の厚み → 白い路面）。カーブで立体的に盛り上がって見える
     const gRoad = el("g", {});
     ROAD_LINES.forEach(pts => {
       const d = lineD(pts);
-      gRoad.appendChild(el("path", { d, class: "rd-shadow", fill: "none", transform: "translate(5,10)" }));
+      gRoad.appendChild(el("path", { d, class: "rd-shadow", fill: "none", transform: "translate(6,20)" }));
+      gRoad.appendChild(el("path", { d, class: "rd-side", fill: "none", transform: "translate(0,12)" }));
       gRoad.appendChild(el("path", { d, class: "rd-band", fill: "none" }));
     });
     svg.appendChild(gRoad);
@@ -170,23 +171,33 @@ const Board = (() => {
     tokenEls = {}; tokenXY = {};
     players.forEach(p => {
       const g = el("g", { class: "token" });
-      g.appendChild(el("ellipse", { rx: 44, ry: 32, class: "token-ring", fill: "none", stroke: p.color }));
+      g.appendChild(el("ellipse", { rx: 46, ry: 34, class: "token-ring", fill: "none", stroke: p.color }));
+      // 本家風のワンカラー成形オープンカー（上面にピン穴6つ・家族の丸頭ピンを挿す）
       const car = el("g", { class: "car-flip" });
-      car.appendChild(el("ellipse", { cx: 0, cy: 17, rx: 33, ry: 6, fill: "rgba(0,0,0,.25)" }));
-      // キャビン（6人乗り：運転手＋配偶者＋子供4人のピンが全部見える）
-      car.appendChild(el("rect", { x: -20, y: -24, width: 50, height: 17, rx: 6, fill: p.color, stroke: "rgba(0,0,0,.2)", "stroke-width": 1.6 }));
-      car.appendChild(el("rect", { x: -17, y: -22, width: 44, height: 12, rx: 4, fill: "#cdeffd" }));
+      car.appendChild(el("ellipse", { cx: 0, cy: 19, rx: 38, ry: 6.5, fill: "rgba(0,0,0,.25)" }));
+      // ピン（車体の後ろに描くと隠れるので車体の前に置く）
       const pins = el("g", { class: "car-pins" });
       car.appendChild(pins);
-      car.appendChild(el("rect", { x: -33, y: -9, width: 66, height: 22, rx: 9, fill: p.color, stroke: "#fff", "stroke-width": 3 }));
-      car.appendChild(el("circle", { cx: -19, cy: 13, r: 8.5, fill: "#2b2b33" }));
-      car.appendChild(el("circle", { cx: 19, cy: 13, r: 8.5, fill: "#2b2b33" }));
-      car.appendChild(el("circle", { cx: -19, cy: 13, r: 3.4, fill: "#ddd" }));
-      car.appendChild(el("circle", { cx: 19, cy: 13, r: 3.4, fill: "#ddd" }));
+      // 車体：低くて丸っこいオープンカー（前方がボンネット・後方が少し高い）
+      car.appendChild(el("path", {
+        d: "M-36,12 L-36,-4 Q-36,-13 -27,-13 L18,-13 Q24,-13 28,-9 L35,-6 Q39,-4 39,2 L39,12 Q39,16 33,16 L-30,16 Q-36,16 -36,12 Z",
+        fill: p.color, stroke: "rgba(0,0,0,.3)", "stroke-width": 2,
+      }));
+      // フロントガラス（前方の小さな透明パネル）
+      car.appendChild(el("path", { d: "M20,-12 L27,-23 L33,-20 L27,-11 Z", fill: "#cdeffd", stroke: "#fff", "stroke-width": 1.6 }));
+      // 上面のピン穴（空席は穴が見える）
+      CAR_HOLES.forEach(hx => car.appendChild(el("ellipse", { cx: hx, cy: -13, rx: 3.4, ry: 2, fill: "rgba(0,0,0,.38)" })));
+      // ホイールも同色（本家のワンカラープラ成形感）
+      [-22, 22].forEach(wx => {
+        car.appendChild(el("circle", { cx: wx, cy: 14, r: 9, fill: p.color, stroke: "rgba(0,0,0,.35)", "stroke-width": 2 }));
+        car.appendChild(el("circle", { cx: wx, cy: 14, r: 4, fill: "rgba(0,0,0,.3)" }));
+      });
+      // 車体のハイライト
+      car.appendChild(el("path", { d: "M-32,-8 Q-33,-11 -27,-11 L0,-11", fill: "none", stroke: "rgba(255,255,255,.5)", "stroke-width": 2.5, "stroke-linecap": "round" }));
       g.appendChild(car);
       const plate = el("g", {});
-      plate.appendChild(el("rect", { x: -9, y: -5, width: 18, height: 15, rx: 3, fill: "#fff", stroke: "rgba(0,0,0,.25)", "stroke-width": 1.2 }));
-      const num = el("text", { y: 7, class: "car-num" });
+      plate.appendChild(el("rect", { x: -9, y: -3, width: 18, height: 15, rx: 3, fill: "#fff", stroke: "rgba(0,0,0,.25)", "stroke-width": 1.2 }));
+      const num = el("text", { y: 9, class: "car-num" });
       num.textContent = p.id + 1;
       plate.appendChild(num);
       g.appendChild(plate);
@@ -219,7 +230,10 @@ const Board = (() => {
     }
   }
 
-  // 性別・結婚・子供に応じて車にピンを乗せる（運転手＋配偶者＋子供4人まで全員見える）
+  // 車のピン穴の位置（前から：運転手→配偶者→子供4人）
+  const CAR_HOLES = [15, 6, -3, -12, -21, -30];
+
+  // 性別・結婚・子供に応じて車に丸頭ピンを挿す（本家のひとピン。運転手が先頭）
   const PIN_M = "#4a90d9", PIN_F = "#f06a9a", PIN_KID = "#ffd23e";
   function syncPins(p) {
     const g = tokenEls[p.id];
@@ -230,15 +244,17 @@ const Board = (() => {
     const spouse = p.gender === "f" ? PIN_M : PIN_F;
     const list = [{ c: self, s: 1 }];
     if (p.married) list.push({ c: spouse, s: 1 });
-    for (let i = 0; i < Math.min(p.children, 4); i++) list.push({ c: PIN_KID, s: .8 });
+    for (let i = 0; i < Math.min(p.children, 4); i++) list.push({ c: PIN_KID, s: .78 });
     list.forEach((pin, i) => {
-      const x = -13 + i * 7;
-      pins.appendChild(el("circle", { cx: x, cy: -13.5 - 4 * pin.s, r: 3.6 * pin.s, fill: pin.c, stroke: "rgba(0,0,0,.25)", "stroke-width": 1 }));
-      pins.appendChild(el("rect", { x: x - 2.8 * pin.s, y: -13.5, width: 5.6 * pin.s, height: 5.5 * pin.s, rx: 2.4, fill: pin.c }));
+      const x = CAR_HOLES[i];
+      // 首（穴に挿さった棒）と丸頭
+      pins.appendChild(el("rect", { x: x - 1.9 * pin.s, y: -13 - 8 * pin.s, width: 3.8 * pin.s, height: 8 * pin.s, rx: 1.6, fill: pin.c, stroke: "rgba(0,0,0,.25)", "stroke-width": 1 }));
+      pins.appendChild(el("circle", { cx: x, cy: -13 - 9.5 * pin.s, r: 4.6 * pin.s, fill: pin.c, stroke: "rgba(0,0,0,.25)", "stroke-width": 1.2 }));
+      pins.appendChild(el("ellipse", { cx: x - 1.4 * pin.s, cy: -14.5 - 9.5 * pin.s, rx: 1.5 * pin.s, ry: 1 * pin.s, fill: "rgba(255,255,255,.6)" }));
     });
     const extra = p.children > 4 ? p.children - 4 : 0;
     if (extra > 0) {
-      const t = el("text", { x: 30, y: -26, class: "car-extra" });
+      const t = el("text", { x: 34, y: -20, class: "car-extra" });
       t.textContent = `+${extra}`;
       pins.appendChild(t);
     }
